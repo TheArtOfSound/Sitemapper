@@ -1,5 +1,18 @@
 export type IssueSeverity = 'error' | 'warning' | 'notice' | 'pass';
 
+export type PageType =
+  | 'home'
+  | 'static'
+  | 'category'
+  | 'category_page'
+  | 'archive'
+  | 'cluster'
+  | 'canvas'
+  | 'source'
+  | 'story'
+  | 'generated'
+  | 'unknown';
+
 export interface SitemapperOptions {
   site: string;
   outDir: string;
@@ -31,10 +44,13 @@ export interface PageIssue {
 export interface PageRecord {
   url: string;
   path: string;
+  displayPath: string;
   section: string;
+  pageType: PageType;
   title?: string;
   description?: string;
   canonical?: string;
+  finalUrl?: string;
   lastmod?: string;
   changefreq?: string;
   priority?: string;
