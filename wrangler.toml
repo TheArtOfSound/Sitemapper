@@ -1,0 +1,7 @@
+name = "sitemapper"
+main = "worker-dist/worker/index.js"
+compatibility_date = "2026-06-09"
+workers_dev = true
+
+[observability]
+enabled = true
