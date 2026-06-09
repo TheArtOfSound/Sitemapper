@@ -3,16 +3,18 @@ import { XMLParser } from 'fast-xml-parser';
 type Env = { SITEMAPPER_STATS?: KVNamespace };
 type Severity = 'error' | 'warning' | 'notice';
 type Issue = { severity: Severity; code: string; message: string };
-type Page = { url: string; path: string; type: string; section: string; title?: string; description?: string; canonical?: string; status?: number; lastmod?: string; deepChecked: boolean; issues: Issue[] };
+type Entry = { url: string; lastmod?: string };
+type Page = Entry & { path: string; type: string; section: string; deepChecked: boolean; title?: string; description?: string; canonical?: string; status?: number; issues: Issue[] };
 type Source = { robotsUrl: string; sitemapUrls: string[]; discoveredFromRobots: boolean; inputMode: 'site' | 'sitemap'; testedUrls: string[]; failures: string[]; compatibility: string; discoveredUrlCount: number; deepCheckedCount: number };
 type CandidateSource = Source & { site: string };
 type Result = { site: string; generatedAt: string; source: Source; scores: { index: number; seo: number; sitemap: number }; stats: { pages: number; sections: number; errors: number; warnings: number; notices: number }; pages: Page[]; issues: Issue[] };
+type FetchTextResult = { status: number; url: string; text: string; contentType: string };
 
-const MAX_SITEMAPS = 80;
+const MAX_SITEMAPS = 100;
 const MAX_URLS = 25000;
 const MAX_DEEP_CHECK_PAGES = 500;
-const TIMEOUT = 7000;
-const UA = 'SitemapperWorker/0.6 (+https://github.com/TheArtOfSound/Sitemapper)';
+const TIMEOUT_MS = 7000;
+const UA = 'SitemapperWorker/0.7 (+https://github.com/TheArtOfSound/Sitemapper)';
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -30,10 +32,10 @@ async function handleAnalyze(url: URL, env: Env): Promise<Response> {
   if (!site) return json({ error: 'Missing site parameter.' }, 400);
   try {
     const result = await analyze(site);
-    await increment(env, result.stats.pages);
+    await increment(env, result.source.discoveredUrlCount);
     return json(result);
   } catch (error) {
-    return json({ error: errorMessage(error), hint: 'Try a direct sitemap.xml URL, the www/non-www variant, or a smaller public site.' }, 500);
+    return json({ error: errorMessage(error), hint: 'Try a direct sitemap URL, www/non-www variant, or a smaller public site.' }, 500);
   }
 }
 
@@ -42,7 +44,7 @@ async function handleReport(url: URL, env: Env): Promise<Response> {
   if (!site) return html(shell('<h1>Missing site</h1><p>Enter a website URL or direct sitemap URL.</p>'), 400);
   try {
     const result = await analyze(site);
-    await increment(env, result.stats.pages);
+    await increment(env, result.source.discoveredUrlCount);
     return html(reportHtml(result));
   } catch (error) {
     return html(shell(`<h1>Sitemapper could not finish this report</h1><p>${escapeHtml(errorMessage(error))}</p><p>Try a direct sitemap URL, a smaller public site, or the www/non-www variant.</p><p><a href="/">Run another check</a></p>`), 500);
@@ -51,12 +53,11 @@ async function handleReport(url: URL, env: Env): Promise<Response> {
 
 async function analyze(input: string): Promise<Result> {
   const target = normalizeInput(input);
-  const discoveries = await discoverCandidates(target);
-  const sourceIssues: Issue[] = [];
+  const candidates = await discoverCandidates(target);
   let bestLoad: Awaited<ReturnType<typeof loadSitemaps>> | undefined;
   let bestSource: CandidateSource | undefined;
 
-  for (const source of discoveries) {
+  for (const source of candidates) {
     const load = await loadSitemaps(source.site, source.sitemapUrls);
     source.testedUrls.push(...load.loaded, ...load.failed);
     source.failures.push(...load.failures);
@@ -68,211 +69,195 @@ async function analyze(input: string): Promise<Result> {
   }
 
   if (!bestLoad || !bestSource) throw new Error('No discovery attempt was produced.');
-  if (!bestSource.discoveredFromRobots && bestSource.inputMode === 'site') sourceIssues.push({ severity: 'notice', code: 'ROBOTS_NO_SITEMAP_REFERENCE', message: 'robots.txt did not expose a usable Sitemap entry; tried common sitemap locations and host variants.' });
-  for (const failed of bestLoad.failed) sourceIssues.push({ severity: 'warning', code: 'SITEMAP_FETCH_FAILED', message: `Could not load sitemap: ${failed}` });
-  for (const failure of bestLoad.failures.slice(0, 12)) sourceIssues.push({ severity: 'notice', code: 'DISCOVERY_NOTE', message: failure });
-  if (bestLoad.entries.length === 0 && bestLoad.loaded.length > 0) sourceIssues.push({ severity: 'error', code: 'SITEMAPS_FOUND_BUT_UNUSABLE', message: 'Sitemap references were found, but no usable URL entries could be extracted. The sitemap files may be blocked, non-standard, empty, or not XML sitemap files.' });
-  if (bestLoad.entries.length === 0 && bestLoad.loaded.length === 0) sourceIssues.push({ severity: 'error', code: 'NO_SITEMAP_URLS_FOUND', message: 'No usable sitemap URLs were found. The site may not expose a sitemap, may block datacenter fetches, or may require a direct sitemap URL.' });
-  if (bestLoad.entries.length > MAX_URLS) sourceIssues.push({ severity: 'notice', code: 'URL_INDEX_LIMIT_REACHED', message: `Indexed first ${MAX_URLS} discovered sitemap URLs.` });
-  if (bestLoad.entries.length > MAX_DEEP_CHECK_PAGES) sourceIssues.push({ severity: 'notice', code: 'DEEP_CHECK_LIMIT_REACHED', message: `Deep checked ${MAX_DEEP_CHECK_PAGES} pages and kept the remaining ${bestLoad.entries.length - MAX_DEEP_CHECK_PAGES} URLs as index-only rows.` });
+
+  const issues: Issue[] = [];
+  if (!bestSource.discoveredFromRobots && bestSource.inputMode === 'site') issues.push({ severity: 'notice', code: 'ROBOTS_NO_USABLE_SITEMAP_REFERENCE', message: 'robots.txt did not expose a usable XML Sitemap directive; common sitemap paths and host variants were tried.' });
+  if (bestLoad.entries.length === 0 && bestLoad.loaded.length > 0) issues.push({ severity: 'error', code: 'SITEMAPS_FOUND_BUT_UNUSABLE', message: 'Sitemap references were found, but no usable URL entries could be extracted. Sitemaps may be blocked, empty, non-standard, or not XML sitemap files.' });
+  if (bestLoad.entries.length === 0 && bestLoad.loaded.length === 0) issues.push({ severity: 'error', code: 'NO_ACCESSIBLE_SITEMAP', message: 'No accessible XML sitemap could be loaded.' });
+  for (const failed of bestLoad.failed.slice(0, 30)) issues.push({ severity: 'warning', code: 'SITEMAP_FETCH_FAILED', message: `Could not load sitemap: ${failed}` });
+  for (const note of bestLoad.failures.slice(0, 30)) issues.push({ severity: 'notice', code: 'DISCOVERY_NOTE', message: note });
+  if (bestLoad.entries.length > MAX_DEEP_CHECK_PAGES) issues.push({ severity: 'notice', code: 'DEEP_CHECK_LIMIT_REACHED', message: `Indexed ${bestLoad.entries.length.toLocaleString()} URLs. Deep checked first ${MAX_DEEP_CHECK_PAGES.toLocaleString()} pages and kept the rest as index-only inventory rows.` });
 
   const deepEntries = bestLoad.entries.slice(0, MAX_DEEP_CHECK_PAGES);
-  const indexOnlyEntries = bestLoad.entries.slice(MAX_DEEP_CHECK_PAGES);
   const deepPages = await inspect(deepEntries);
-  const indexOnlyPages = indexOnlyEntries.map(buildIndexOnlyPage);
-  const pages = [...deepPages, ...indexOnlyPages];
   addDuplicateIssues(deepPages);
-
-  const allIssues = [...sourceIssues, ...pages.flatMap((p) => p.issues)];
+  const indexPages = bestLoad.entries.slice(MAX_DEEP_CHECK_PAGES).map(buildIndexOnlyPage);
+  const pages = [...deepPages, ...indexPages];
+  const allIssues = [...issues, ...pages.flatMap((page) => page.issues)];
   const stats = summarize(pages, allIssues);
-  const compatibility = compatibilityVerdict(bestLoad.entries.length, bestLoad.loaded.length, bestLoad.failed.length, deepPages.filter((p) => p.issues.some((i) => i.severity === 'error')).length);
+  const compatibility = compatibilityVerdict(bestLoad.entries.length, bestLoad.loaded.length, bestLoad.failed.length, deepPages.filter((page) => page.issues.some((issue) => issue.severity === 'error')).length);
   bestSource.compatibility = compatibility;
   bestSource.discoveredUrlCount = bestLoad.entries.length;
   bestSource.deepCheckedCount = deepPages.length;
   const { site, ...sourceForResult } = bestSource;
 
-  return { site, generatedAt: new Date().toISOString(), source: { ...sourceForResult, sitemapUrls: bestLoad.loaded.length ? bestLoad.loaded : bestSource.sitemapUrls }, scores: score(deepPages, sourceIssues), stats, pages, issues: sourceIssues };
+  return { site, generatedAt: new Date().toISOString(), source: { ...sourceForResult, sitemapUrls: bestLoad.loaded.length ? bestLoad.loaded : bestSource.sitemapUrls }, scores: score(deepPages, issues, pages), stats, pages, issues };
 }
 
 async function discoverCandidates(target: { input: string; site: string; inputMode: 'site' | 'sitemap' }): Promise<CandidateSource[]> {
   if (target.inputMode === 'sitemap') {
-    return [{ site: new URL(target.input).origin, robotsUrl: `${new URL(target.input).origin}/robots.txt`, sitemapUrls: [target.input], discoveredFromRobots: false, inputMode: 'sitemap', testedUrls: [target.input], failures: [], compatibility: 'Direct sitemap input.', discoveredUrlCount: 0, deepCheckedCount: 0 }];
+    const origin = new URL(target.input).origin;
+    return [makeCandidate(origin, `${origin}/robots.txt`, [target.input], false, 'sitemap', ['Direct sitemap input.'])];
   }
 
-  const urls = candidateSiteOrigins(target.site);
   const out: CandidateSource[] = [];
-  for (const site of urls) {
+  for (const site of candidateOrigins(target.site)) {
     const origin = new URL(site).origin;
     const robotsUrl = `${origin}/robots.txt`;
-    const testedUrls = [robotsUrl];
     const failures: string[] = [];
     try {
       const robots = await fetchText(robotsUrl);
-      const extracted = extractSitemaps(robots.text);
-      const ignored = extracted.ignored;
-      const found = extracted.urls.filter((u) => sameHost(u, site));
-      for (const ignoredUrl of ignored.slice(0, 8)) failures.push(`Ignored non-XML Sitemap directive: ${ignoredUrl}`);
-      if (found.length) {
-        out.push({ site, robotsUrl, sitemapUrls: found, discoveredFromRobots: true, inputMode: 'site', testedUrls, failures, compatibility: 'robots.txt exposed sitemap URLs.', discoveredUrlCount: 0, deepCheckedCount: 0 });
+      const extracted = extractSitemapsFromRobots(robots.text);
+      for (const ignored of extracted.ignored.slice(0, 20)) failures.push(`Ignored non-XML Sitemap directive: ${ignored}`);
+      const usable = extracted.urls.filter((item) => sameHost(item, site));
+      if (usable.length) {
+        out.push(makeCandidate(site, robotsUrl, usable, true, 'site', failures));
         continue;
       }
-      failures.push(`${robotsUrl} loaded but did not expose usable XML Sitemap directives.`);
+      failures.push(`${robotsUrl} loaded but did not expose usable same-host XML Sitemap directives.`);
     } catch (error) {
       failures.push(`${robotsUrl} failed: ${errorMessage(error)}`);
     }
-    out.push({ site, robotsUrl, sitemapUrls: commonSitemapUrls(origin), discoveredFromRobots: false, inputMode: 'site', testedUrls, failures, compatibility: 'Common sitemap fallback.', discoveredUrlCount: 0, deepCheckedCount: 0 });
+    out.push(makeCandidate(site, robotsUrl, commonSitemapUrls(origin), false, 'site', failures));
   }
   return out;
 }
 
-function normalizeInput(input: string): { input: string; site: string; inputMode: 'site' | 'sitemap' } {
-  const raw = input.trim();
-  if (!raw) throw new Error('Empty URL.');
-  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
-  const url = new URL(withProtocol);
-  url.hash = '';
-  const isSitemap = isLikelySitemapUrl(url.toString());
-  if (isSitemap) return { input: normalizeUrl(url.toString()), site: url.origin, inputMode: 'sitemap' };
-  url.search = '';
-  url.pathname = url.pathname === '/' ? '' : url.pathname.replace(/\/+$/, '');
-  return { input: url.toString().replace(/\/$/, ''), site: url.toString().replace(/\/$/, ''), inputMode: 'site' };
+function makeCandidate(site: string, robotsUrl: string, sitemapUrls: string[], discoveredFromRobots: boolean, inputMode: 'site' | 'sitemap', failures: string[]): CandidateSource {
+  return { site, robotsUrl, sitemapUrls, discoveredFromRobots, inputMode, testedUrls: [robotsUrl], failures, compatibility: 'Not run yet.', discoveredUrlCount: 0, deepCheckedCount: 0 };
 }
 
-function candidateSiteOrigins(site: string): string[] {
-  const url = new URL(site);
-  const host = url.hostname;
-  const alternates = [url.origin];
-  if (host.startsWith('www.')) alternates.push(`${url.protocol}//${host.replace(/^www\./, '')}`);
-  else alternates.push(`${url.protocol}//www.${host}`);
-  return Array.from(new Set(alternates));
-}
-
-function commonSitemapUrls(origin: string): string[] {
-  return [`${origin}/sitemap.xml`, `${origin}/sitemap_index.xml`, `${origin}/sitemap-index.xml`, `${origin}/wp-sitemap.xml`, `${origin}/sitemap/sitemap.xml`];
-}
-
-function extractSitemaps(text: string): { urls: string[]; ignored: string[] } {
-  const raw = text.split(/\r?\n/).map((line) => line.trim()).filter((line) => /^sitemap\s*:/i.test(line)).map((line) => line.replace(/^sitemap\s*:/i, '').trim()).filter(Boolean);
-  return { urls: raw.filter(isLikelySitemapUrl), ignored: raw.filter((url) => !isLikelySitemapUrl(url)) };
-}
-
-function isLikelySitemapUrl(input: string): boolean {
-  try {
-    const url = new URL(input);
-    const path = url.pathname.toLowerCase();
-    if (path.endsWith('/llms.txt') || path.endsWith('/robots.txt')) return false;
-    return /sitemap/.test(path) || /\.xml(\.gz)?$/.test(path);
-  } catch {
-    return false;
-  }
-}
-
-async function loadSitemaps(site: string, starts: string[]): Promise<{ entries: Array<{ url: string; lastmod?: string }>; loaded: string[]; failed: string[]; failures: string[] }> {
+async function loadSitemaps(site: string, starts: string[]): Promise<{ entries: Entry[]; loaded: string[]; failed: string[]; failures: string[] }> {
   const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '' });
   const queue = starts.filter(isLikelySitemapUrl).map(normalizeUrl);
   const seen = new Set<string>();
-  const entries = new Map<string, { url: string; lastmod?: string }>();
   const loaded: string[] = [];
   const failed: string[] = [];
   const failures: string[] = [];
+  const entries = new Map<string, Entry>();
 
   while (queue.length && seen.size < MAX_SITEMAPS && entries.size < MAX_URLS) {
     const sitemap = queue.shift()!;
     if (seen.has(sitemap)) continue;
     seen.add(sitemap);
+
     try {
       const response = await fetchText(sitemap);
-      const lower = response.text.slice(0, 500).toLowerCase();
-      if (looksLikeBotBlock(response.status, lower)) failures.push(`${sitemap} looks blocked or challenged by bot protection.`);
-      if (response.contentType && !/xml|text|gzip/i.test(response.contentType)) failures.push(`${sitemap} returned non-sitemap content-type: ${response.contentType}.`);
-      const xml = parser.parse(response.text);
       loaded.push(sitemap);
+      if (looksLikeBotBlock(response.status, response.text.slice(0, 1200))) failures.push(`${sitemap} looks blocked or challenged by bot protection.`);
+      if (response.contentType && !/xml|text|gzip/i.test(response.contentType)) failures.push(`${sitemap} returned suspicious content-type: ${response.contentType}.`);
 
-      let addedChildren = 0;
-      let addedUrls = 0;
-      for (const child of arrayOf(xml?.sitemapindex?.sitemap)) {
-        const loc = textValue(child?.loc);
-        if (loc && isLikelySitemapUrl(loc) && sameHost(loc, site) && !seen.has(normalizeUrl(loc))) {
-          queue.push(normalizeUrl(loc));
-          addedChildren += 1;
+      let parsedChildCount = 0;
+      let parsedUrlCount = 0;
+      try {
+        const xml = parser.parse(response.text);
+        for (const child of arrayOf(xml?.sitemapindex?.sitemap)) {
+          const loc = textValue(child?.loc);
+          if (loc && isLikelySitemapUrl(loc) && sameHost(loc, site) && !seen.has(normalizeUrl(loc))) {
+            queue.push(normalizeUrl(loc));
+            parsedChildCount += 1;
+          }
         }
+        for (const item of arrayOf(xml?.urlset?.url)) {
+          const loc = textValue(item?.loc);
+          if (loc && sameHost(loc, site)) {
+            addEntry(entries, loc, textValue(item?.lastmod));
+            parsedUrlCount += 1;
+          }
+          if (entries.size >= MAX_URLS) break;
+        }
+      } catch (error) {
+        failures.push(`${sitemap} XML parser fallback used: ${errorMessage(error)}`);
       }
-      for (const item of arrayOf(xml?.urlset?.url)) {
-        const loc = textValue(item?.loc);
-        if (!loc || !sameHost(loc, site)) continue;
-        const key = normalizeUrl(loc);
-        if (!entries.has(key)) {
-          entries.set(key, { url: key, lastmod: textValue(item?.lastmod) });
-          addedUrls += 1;
+
+      const rawLocs = extractLocTags(response.text);
+      let rawChildCount = 0;
+      let rawUrlCount = 0;
+      for (const loc of rawLocs) {
+        if (!sameHost(loc, site)) continue;
+        if (isLikelySitemapUrl(loc) && !seen.has(normalizeUrl(loc))) {
+          queue.push(normalizeUrl(loc));
+          rawChildCount += 1;
+        } else if (isLikelyPageUrl(loc)) {
+          addEntry(entries, loc, extractLastmodNearLoc(response.text, loc));
+          rawUrlCount += 1;
         }
         if (entries.size >= MAX_URLS) break;
       }
-      if (!xml?.sitemapindex && !xml?.urlset) failures.push(`${sitemap} loaded, but did not look like a sitemap index or urlset.`);
-      if (xml?.sitemapindex && addedChildren === 0) failures.push(`${sitemap} was a sitemap index, but no same-host XML child sitemaps were usable.`);
-      if (xml?.urlset && addedUrls === 0) failures.push(`${sitemap} was a urlset, but no same-host URLs were extracted.`);
+
+      if (parsedChildCount + parsedUrlCount + rawChildCount + rawUrlCount === 0) failures.push(`${sitemap} loaded but produced 0 same-host sitemap children or URL entries.`);
     } catch (error) {
       failed.push(sitemap);
       failures.push(`${sitemap} failed: ${errorMessage(error)}`);
     }
   }
-  return { entries: Array.from(entries.values()), loaded, failed, failures };
+
+  return { entries: [...entries.values()], loaded, failed, failures };
 }
 
-async function inspect(entries: Array<{ url: string; lastmod?: string }>): Promise<Page[]> {
+function addEntry(entries: Map<string, Entry>, url: string, lastmod?: string): void {
+  const key = normalizeUrl(url);
+  if (!entries.has(key)) entries.set(key, { url: key, lastmod });
+}
+
+async function inspect(entries: Entry[]): Promise<Page[]> {
   const pages: Page[] = [];
   for (let i = 0; i < entries.length; i += 8) {
     const batch = entries.slice(i, i + 8);
-    const result = await Promise.all(batch.map(async (entry) => {
+    pages.push(...await Promise.all(batch.map(async (entry) => {
       try {
         const response = await fetchText(entry.url);
-        return buildPage(entry, response.status, response.url, response.text, response.contentType);
+        return buildDeepPage(entry, response.status, response.url, response.text, response.contentType);
       } catch (error) {
-        const page = buildPage(entry, undefined, undefined, undefined, undefined);
+        const page = buildDeepPage(entry);
         page.issues.push({ severity: 'notice', code: 'FETCH_DETAIL', message: errorMessage(error) });
         return page;
       }
-    }));
-    pages.push(...result);
+    })));
   }
   return pages;
 }
 
-function buildIndexOnlyPage(entry: { url: string; lastmod?: string }): Page {
-  return { url: entry.url, path: new URL(entry.url).pathname || '/', type: pageType(entry.url), section: section(entry.url), lastmod: entry.lastmod, deepChecked: false, issues: [{ severity: 'notice', code: 'INDEX_ONLY_NOT_FETCHED', message: 'URL was discovered from sitemap but not deep-fetched for metadata in this Worker run.' }] };
+function buildIndexOnlyPage(entry: Entry): Page {
+  return { ...basePage(entry), deepChecked: false, issues: [{ severity: 'notice', code: 'INDEX_ONLY_NOT_FETCHED', message: 'URL was discovered from sitemap inventory but not deep-fetched in this Worker run.' }] };
 }
 
-function buildPage(entry: { url: string; lastmod?: string }, status?: number, finalUrl?: string, body?: string, contentType?: string): Page {
-  const issues: Issue[] = [];
-  const type = pageType(entry.url);
-  const generated = ['archive', 'cluster', 'category_page', 'canvas', 'story', 'generated'].includes(type);
+function buildDeepPage(entry: Entry, status?: number, finalUrl?: string, body?: string, contentType?: string): Page {
+  const page = basePage(entry);
+  page.deepChecked = true;
+  const generated = ['archive', 'cluster', 'category_page', 'canvas', 'story', 'generated'].includes(page.type);
   const lowerHead = body?.slice(0, 1200).toLowerCase() || '';
-  const title = body ? clean(/<title[^>]*>([\s\S]*?)<\/title>/i.exec(body)?.[1]) : undefined;
-  const description = body ? clean(meta(body, 'description')) : undefined;
-  const canonical = body ? clean(canonicalOf(body)) : undefined;
+  page.title = body ? clean(/<title[^>]*>([\s\S]*?)<\/title>/i.exec(body)?.[1]) : undefined;
+  page.description = body ? clean(meta(body, 'description')) : undefined;
+  page.canonical = body ? clean(canonicalOf(body)) : undefined;
+  page.status = status;
   const robots = body ? clean(meta(body, 'robots'))?.toLowerCase() : undefined;
 
-  if (!status) issues.push({ severity: 'error', code: 'FETCH_FAILED', message: 'Page could not be fetched.' });
-  else if (status >= 400) issues.push({ severity: 'error', code: 'BAD_STATUS', message: `Page returned HTTP ${status}.` });
-  else if (status >= 300) issues.push({ severity: 'warning', code: 'REDIRECT_STATUS', message: `Page returned HTTP ${status}.` });
-  if (finalUrl && normalizeUrl(finalUrl) !== normalizeUrl(entry.url)) issues.push({ severity: 'warning', code: 'REDIRECTED_URL', message: `Sitemap URL resolves to ${finalUrl}.` });
-  if (contentType && !/html|xhtml|text\//i.test(contentType)) issues.push({ severity: 'notice', code: 'NON_HTML_RESPONSE', message: `Response content-type was ${contentType}.` });
-  if (looksLikeBotBlock(status || 0, lowerHead)) issues.push({ severity: 'warning', code: 'BOT_PROTECTION_DETECTED', message: 'Page response looks like bot protection, an access challenge, or a blocked request.' });
-  if (!title) issues.push({ severity: generated ? 'notice' : 'warning', code: 'MISSING_TITLE', message: 'Page is missing a title tag.' });
-  else if (title.length > 75) issues.push({ severity: generated ? 'notice' : 'warning', code: 'LONG_TITLE', message: 'Title may be too long.' });
-  else if (title.length < 15) issues.push({ severity: 'notice', code: 'SHORT_TITLE', message: 'Title is very short.' });
-  if (!description) issues.push({ severity: generated ? 'notice' : 'warning', code: 'MISSING_META_DESCRIPTION', message: 'Page is missing a meta description.' });
-  else if (description.length > 180) issues.push({ severity: generated ? 'notice' : 'warning', code: 'LONG_META_DESCRIPTION', message: 'Meta description may be too long.' });
-  else if (description.length < 50) issues.push({ severity: 'notice', code: 'SHORT_META_DESCRIPTION', message: 'Meta description is short.' });
-  if (!canonical) issues.push({ severity: 'notice', code: 'MISSING_CANONICAL', message: 'Page is missing a canonical link.' });
-  if (robots?.includes('noindex')) issues.push({ severity: 'error', code: 'NOINDEX_IN_SITEMAP', message: 'Page appears in sitemap but has noindex.' });
-  if (!entry.lastmod) issues.push({ severity: generated ? 'notice' : 'warning', code: 'MISSING_LASTMOD', message: 'Sitemap entry is missing lastmod.' });
-
-  return { url: entry.url, path: new URL(entry.url).pathname || '/', type, section: section(entry.url), title, description, canonical, status, lastmod: entry.lastmod, deepChecked: true, issues };
+  if (!status) page.issues.push({ severity: 'error', code: 'FETCH_FAILED', message: 'Page could not be fetched.' });
+  else if (status >= 400) page.issues.push({ severity: 'error', code: 'BAD_STATUS', message: `Page returned HTTP ${status}.` });
+  else if (status >= 300) page.issues.push({ severity: 'warning', code: 'REDIRECT_STATUS', message: `Page returned HTTP ${status}.` });
+  if (finalUrl && normalizeUrl(finalUrl) !== normalizeUrl(entry.url)) page.issues.push({ severity: 'warning', code: 'REDIRECTED_URL', message: `Sitemap URL resolves to ${finalUrl}.` });
+  if (contentType && !/html|xhtml|text\//i.test(contentType)) page.issues.push({ severity: 'notice', code: 'NON_HTML_RESPONSE', message: `Response content-type was ${contentType}.` });
+  if (looksLikeBotBlock(status || 0, lowerHead)) page.issues.push({ severity: 'warning', code: 'BOT_PROTECTION_DETECTED', message: 'Page response looks like bot protection, an access challenge, or a blocked request.' });
+  if (!page.title) page.issues.push({ severity: generated ? 'notice' : 'warning', code: 'MISSING_TITLE', message: 'Page is missing a title tag.' });
+  else if (page.title.length > 75) page.issues.push({ severity: generated ? 'notice' : 'warning', code: 'LONG_TITLE', message: 'Title may be too long.' });
+  else if (page.title.length < 15) page.issues.push({ severity: 'notice', code: 'SHORT_TITLE', message: 'Title is very short.' });
+  if (!page.description) page.issues.push({ severity: generated ? 'notice' : 'warning', code: 'MISSING_META_DESCRIPTION', message: 'Page is missing a meta description.' });
+  else if (page.description.length > 180) page.issues.push({ severity: generated ? 'notice' : 'warning', code: 'LONG_META_DESCRIPTION', message: 'Meta description may be too long.' });
+  else if (page.description.length < 50) page.issues.push({ severity: 'notice', code: 'SHORT_META_DESCRIPTION', message: 'Meta description is short.' });
+  if (!page.canonical) page.issues.push({ severity: 'notice', code: 'MISSING_CANONICAL', message: 'Page is missing a canonical link.' });
+  if (robots?.includes('noindex')) page.issues.push({ severity: 'error', code: 'NOINDEX_IN_SITEMAP', message: 'Page appears in sitemap but has noindex.' });
+  if (!entry.lastmod) page.issues.push({ severity: generated ? 'notice' : 'warning', code: 'MISSING_LASTMOD', message: 'Sitemap entry is missing lastmod.' });
+  return page;
 }
 
-async function fetchText(url: string): Promise<{ status: number; url: string; text: string; contentType: string }> {
+function basePage(entry: Entry): Page {
+  return { ...entry, path: new URL(entry.url).pathname || '/', type: pageType(entry.url), section: section(entry.url), deepChecked: false, issues: [] };
+}
+
+async function fetchText(url: string): Promise<FetchTextResult> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), TIMEOUT);
+  const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
     const response = await fetch(url, { redirect: 'follow', signal: controller.signal, headers: { 'user-agent': UA, accept: 'text/html,application/xhtml+xml,application/xml,text/xml;q=0.9,*/*;q=0.6' } });
     return { status: response.status, url: response.url || url, text: await response.text(), contentType: response.headers.get('content-type') || '' };
@@ -282,37 +267,100 @@ async function fetchText(url: string): Promise<{ status: number; url: string; te
 }
 
 function addDuplicateIssues(pages: Page[]): void {
-  const titles = groupBy(pages.filter((p) => p.title), (p) => p.title!.toLowerCase());
-  const descs = groupBy(pages.filter((p) => p.description), (p) => p.description!.toLowerCase());
-  for (const group of titles.values()) if (group.length > 1) for (const page of group) page.issues.push({ severity: ['archive', 'cluster', 'category_page', 'generated'].includes(page.type) ? 'notice' : 'warning', code: 'DUPLICATE_TITLE', message: 'Title is duplicated on another indexed page.' });
-  for (const group of descs.values()) if (group.length > 1) for (const page of group) page.issues.push({ severity: 'notice', code: 'DUPLICATE_META_DESCRIPTION', message: 'Meta description is duplicated on another indexed page.' });
+  const titleGroups = groupBy(pages.filter((page) => page.title), (page) => page.title!.toLowerCase());
+  const descGroups = groupBy(pages.filter((page) => page.description), (page) => page.description!.toLowerCase());
+  for (const group of titleGroups.values()) if (group.length > 1) for (const page of group) page.issues.push({ severity: ['archive', 'cluster', 'category_page', 'generated'].includes(page.type) ? 'notice' : 'warning', code: 'DUPLICATE_TITLE', message: 'Title is duplicated on another indexed page.' });
+  for (const group of descGroups.values()) if (group.length > 1) for (const page of group) page.issues.push({ severity: 'notice', code: 'DUPLICATE_META_DESCRIPTION', message: 'Meta description is duplicated on another indexed page.' });
 }
 
 function summarize(pages: Page[], issues: Issue[]): Result['stats'] {
-  return { pages: pages.length, sections: new Set(pages.map((p) => p.section)).size, errors: issues.filter((i) => i.severity === 'error').length, warnings: issues.filter((i) => i.severity === 'warning').length, notices: issues.filter((i) => i.severity === 'notice').length };
+  return { pages: pages.length, sections: new Set(pages.map((page) => page.section)).size, errors: issues.filter((issue) => issue.severity === 'error').length, warnings: issues.filter((issue) => issue.severity === 'warning').length, notices: issues.filter((issue) => issue.severity === 'notice').length };
 }
 
-function score(pages: Page[], root: Issue[]): Result['scores'] {
-  const deepPages = pages.filter((p) => p.deepChecked);
-  const all = [...root, ...deepPages.flatMap((p) => p.issues)];
-  const total = Math.max(deepPages.length, 1);
-  return { index: clamp(100 - Math.round((deepPages.filter((p) => !p.title).length / total) * 20)), seo: clamp(100 - all.filter((i) => i.severity === 'error').length * 10 - all.filter((i) => i.severity === 'warning').length * 1.25 - all.filter((i) => i.severity === 'notice').length * 0.15 - Math.round((deepPages.filter((p) => !p.description).length / total) * 12)), sitemap: clamp(100 - Math.round((pages.filter((p) => !p.lastmod).length / Math.max(pages.length, 1)) * 10)) };
+function score(deepPages: Page[], rootIssues: Issue[], allPages: Page[]): Result['scores'] {
+  const all = [...rootIssues, ...deepPages.flatMap((page) => page.issues)];
+  const totalDeep = Math.max(deepPages.length, 1);
+  const totalAll = Math.max(allPages.length, 1);
+  return { index: clamp(100 - Math.round((deepPages.filter((page) => !page.title).length / totalDeep) * 20)), seo: clamp(100 - all.filter((issue) => issue.severity === 'error').length * 10 - all.filter((issue) => issue.severity === 'warning').length * 1.25 - all.filter((issue) => issue.severity === 'notice').length * 0.15 - Math.round((deepPages.filter((page) => !page.description).length / totalDeep) * 12)), sitemap: clamp(100 - Math.round((allPages.filter((page) => !page.lastmod).length / totalAll) * 10)) };
 }
 
 function compatibilityVerdict(entryCount: number, loadedSitemaps: number, failedCount: number, deepErrorCount: number): string {
   if (entryCount === 0 && loadedSitemaps > 0) return 'Sitemap references were found, but no usable URL entries could be extracted. This is usually an unsupported, blocked, empty, or non-standard sitemap setup.';
-  if (entryCount === 0) return 'Not compatible yet: no accessible sitemap URLs were found.';
-  if (deepErrorCount > Math.max(10, entryCount * 0.5)) return 'Partially compatible: sitemap URLs were discovered, but many sampled pages could not be fetched.';
+  if (entryCount === 0) return 'Not compatible yet: no accessible XML sitemap URLs were found.';
+  if (deepErrorCount > Math.max(10, entryCount * 0.5)) return 'Partially compatible: sitemap URLs were indexed, but many sampled pages could not be fetched.';
   if (failedCount > 0) return 'Mostly compatible: some sitemap files failed, but usable URLs were indexed.';
   return 'Compatible: sitemap URLs were indexed and sampled page metadata was accessible.';
 }
 
+function extractSitemapsFromRobots(text: string): { urls: string[]; ignored: string[] } {
+  const raw = text.split(/\r?\n/).map((line) => line.trim()).filter((line) => /^sitemap\s*:/i.test(line)).map((line) => line.replace(/^sitemap\s*:/i, '').trim()).filter(Boolean);
+  return { urls: raw.filter(isLikelySitemapUrl), ignored: raw.filter((url) => !isLikelySitemapUrl(url)) };
+}
+
+function extractLocTags(xml: string): string[] {
+  const out: string[] = [];
+  const regex = /<loc[^>]*>\s*([^<\s]+)\s*<\/loc>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(xml))) {
+    const decoded = decodeXml(match[1]);
+    try { out.push(normalizeUrl(decoded)); } catch {}
+  }
+  return Array.from(new Set(out));
+}
+
+function extractLastmodNearLoc(xml: string, loc: string): string | undefined {
+  const index = xml.indexOf(loc);
+  if (index < 0) return undefined;
+  const slice = xml.slice(Math.max(0, index - 600), Math.min(xml.length, index + 1200));
+  return clean(/<lastmod[^>]*>\s*([^<\s]+)\s*<\/lastmod>/i.exec(slice)?.[1]);
+}
+
+function normalizeInput(input: string): { input: string; site: string; inputMode: 'site' | 'sitemap' } {
+  const raw = input.trim();
+  if (!raw) throw new Error('Empty URL.');
+  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  const url = new URL(withProtocol);
+  url.hash = '';
+  if (isLikelySitemapUrl(url.toString())) return { input: normalizeUrl(url.toString()), site: url.origin, inputMode: 'sitemap' };
+  url.search = '';
+  url.pathname = url.pathname === '/' ? '' : url.pathname.replace(/\/+$/, '');
+  return { input: url.toString().replace(/\/$/, ''), site: url.toString().replace(/\/$/, ''), inputMode: 'site' };
+}
+
+function candidateOrigins(site: string): string[] {
+  const url = new URL(site);
+  const host = url.hostname;
+  const origins = [url.origin];
+  if (host.startsWith('www.')) origins.push(`${url.protocol}//${host.replace(/^www\./, '')}`);
+  else origins.push(`${url.protocol}//www.${host}`);
+  return Array.from(new Set(origins));
+}
+
+function commonSitemapUrls(origin: string): string[] {
+  return [`${origin}/sitemap.xml`, `${origin}/sitemap_index.xml`, `${origin}/sitemap-index.xml`, `${origin}/wp-sitemap.xml`, `${origin}/sitemap/sitemap.xml`];
+}
+
+function isLikelySitemapUrl(input: string): boolean {
+  try {
+    const path = new URL(input).pathname.toLowerCase();
+    if (path.endsWith('/llms.txt') || path.endsWith('/robots.txt')) return false;
+    return /sitemap/.test(path) || /\.xml(\.gz)?$/.test(path);
+  } catch { return false; }
+}
+
+function isLikelyPageUrl(input: string): boolean {
+  try {
+    const path = new URL(input).pathname.toLowerCase();
+    return !path.endsWith('.xml') && !path.endsWith('.xml.gz') && !path.endsWith('/llms.txt') && !path.endsWith('/robots.txt');
+  } catch { return false; }
+}
+
 function looksLikeBotBlock(status: number, text: string): boolean {
-  return status === 403 || status === 429 || /cloudflare|access denied|captcha|bot detection|verify you are human|akamai|perimeterx|blocked/i.test(text);
+  return status === 403 || status === 429 || /cloudflare|access denied|captcha|bot detection|verify you are human|akamai|perimeterx|blocked|forbidden/i.test(text);
 }
 
 function appHtml(): string {
-  return shell(`<section class="home"><h1 class="logo">Sitemapper<small>real sitemap index + SEO checker</small></h1><form id="mapForm" class="box" action="/api/report" method="get"><span>⌕</span><input id="site" name="site" value="https://wesearch.press" autocomplete="url"><button id="mapBtn" type="submit">Map Site</button></form><p>Enter a public website or direct sitemap URL. Sitemapper indexes all discovered sitemap URLs it can reach, then deep-checks the first ${MAX_DEEP_CHECK_PAGES.toLocaleString()} pages for metadata.</p><p><a href="/api/report?site=https%3A%2F%2Fwesearch.press">Open WeSearch report directly</a> · <a href="/api/report?site=https%3A%2F%2Fwesearch.press%2Fsitemap_index.xml">Try direct sitemap URL</a> · <a href="/api/analyze?site=https%3A%2F%2Fwesearch.press">Raw JSON</a></p><p id="status" class="muted">Ready. Stats loading…</p><div id="results"></div></section><script>${clientJs()}</script>`);
+  return shell(`<section class="home"><h1 class="logo">Sitemapper<small>real sitemap index + SEO checker</small></h1><form id="mapForm" class="box" action="/api/report" method="get"><span>⌕</span><input id="site" name="site" value="https://wesearch.press" autocomplete="url"><button id="mapBtn" type="submit">Map Site</button></form><p>Enter a public website or direct sitemap URL. Sitemapper indexes all discovered sitemap URLs it can reach, then deep-checks the first ${MAX_DEEP_CHECK_PAGES.toLocaleString()} pages for metadata.</p><p><a href="/api/report?site=https%3A%2F%2Fwesearch.press">Open WeSearch report directly</a> · <a href="/api/report?site=https%3A%2F%2Fwesearch.press%2Fsitemap_index.xml">Try direct sitemap URL</a> · <a href="/api/report?site=https%3A%2F%2Fwww.godaddy.com%2Fsitemap.xml">Try GoDaddy direct sitemap</a></p><p id="status" class="muted">Ready. Stats loading…</p><div id="results"></div></section><script>${clientJs()}</script>`);
 }
 
 function clientJs(): string {
@@ -323,7 +371,7 @@ function reportHtml(result: Result): string {
   const host = new URL(result.site).hostname;
   const topIssues = issueCounts(result).map(([issue, count]) => `<tr><td>${escapeHtml(humanize(issue))}</td><td>${count}</td></tr>`).join('');
   const pageRows = result.pages.map((page) => `<tr><td><a href="${escapeAttr(page.url)}">${escapeHtml(page.title || page.path)}</a><br><small>${escapeHtml(page.url)}</small></td><td>${escapeHtml(page.type)}</td><td>${page.deepChecked ? 'Deep checked' : 'Index only'}</td><td>${page.status || '—'}</td><td>${page.issues.length}</td><td>${escapeHtml(page.issues.slice(0, 5).map((i) => humanize(i.code)).join(', ') || 'Clean')}</td></tr>`).join('');
-  return shell(`<h1>Sitemapper SEO Specialist Report</h1><p class="muted">${escapeHtml(host)} · Generated ${escapeHtml(result.generatedAt)} · ${result.source.discoveredUrlCount.toLocaleString()} URLs indexed · ${result.source.deepCheckedCount.toLocaleString()} pages deep checked</p><p><button onclick="print()" class="button">Print / Save as PDF</button> <a href="/api/analyze?site=${encodeURIComponent(result.site)}">Raw JSON</a> <a href="/">Run another site</a></p><div class="verdict">${escapeHtml(result.source.compatibility)}</div><div class="scores"><div><b>${result.scores.index}</b><span>Index</span></div><div><b>${result.scores.seo}</b><span>SEO</span></div><div><b>${result.scores.sitemap}</b><span>Sitemap</span></div></div><h2>Executive Summary</h2><p>Indexed ${result.source.discoveredUrlCount.toLocaleString()} sitemap URLs across ${result.stats.sections} sections. Deep checked ${result.source.deepCheckedCount.toLocaleString()} pages for HTTP status, title, description, canonical, robots metadata, duplicate metadata, and sitemap freshness. Found ${result.stats.errors} errors, ${result.stats.warnings} warnings, and ${result.stats.notices} notices.</p><h2>Discovery Diagnostics</h2><p><strong>Input mode:</strong> ${escapeHtml(result.source.inputMode)}</p><p><strong>Robots URL:</strong> ${escapeHtml(result.source.robotsUrl)}</p><ul>${result.source.failures.map((f) => `<li>${escapeHtml(f)}</li>`).join('') || '<li>No discovery failures recorded.</li>'}</ul><h2>Discovered Sitemaps</h2><ul>${result.source.sitemapUrls.map((u) => `<li>${escapeHtml(u)}</li>`).join('')}</ul><h2>Top Issues</h2><table><thead><tr><th>Issue</th><th>Count</th></tr></thead><tbody>${topIssues || '<tr><td>No issues detected</td><td>0</td></tr>'}</tbody></table><h2>Recommended Priority</h2><ol><li>Fix error-level deep-checked pages first: failed fetches, bad statuses, and noindex sitemap conflicts.</li><li>Review static pages before generated archive/category/cluster pages.</li><li>Use index-only rows as the complete sitemap URL inventory.</li><li>If analysis failed on a large protected platform, use a direct XML sitemap URL or a verified owned site.</li><li>Consolidate duplicate titles and descriptions where pages are meant to rank separately.</li><li>Add missing lastmod values where freshness matters.</li></ol><h2>URL Inventory and Page-Level Findings</h2><table><thead><tr><th>Page</th><th>Type</th><th>Mode</th><th>Status</th><th>Issues</th><th>Findings</th></tr></thead><tbody>${pageRows}</tbody></table>`);
+  return shell(`<h1>Sitemapper SEO Specialist Report</h1><p class="muted">${escapeHtml(host)} · Generated ${escapeHtml(result.generatedAt)} · ${result.source.discoveredUrlCount.toLocaleString()} URLs indexed · ${result.source.deepCheckedCount.toLocaleString()} pages deep checked</p><p><button onclick="print()" class="button">Print / Save as PDF</button> <a href="/api/analyze?site=${encodeURIComponent(result.site)}">Raw JSON</a> <a href="/">Run another site</a></p><div class="verdict">${escapeHtml(result.source.compatibility)}</div><div class="scores"><div><b>${result.scores.index}</b><span>Index</span></div><div><b>${result.scores.seo}</b><span>SEO</span></div><div><b>${result.scores.sitemap}</b><span>Sitemap</span></div></div><h2>Executive Summary</h2><p>Indexed ${result.source.discoveredUrlCount.toLocaleString()} sitemap URLs across ${result.stats.sections} sections. Deep checked ${result.source.deepCheckedCount.toLocaleString()} pages for HTTP status, title, description, canonical, robots metadata, duplicate metadata, and sitemap freshness. Found ${result.stats.errors} errors, ${result.stats.warnings} warnings, and ${result.stats.notices} notices.</p><h2>Discovery Diagnostics</h2><p><strong>Input mode:</strong> ${escapeHtml(result.source.inputMode)}</p><p><strong>Robots URL:</strong> ${escapeHtml(result.source.robotsUrl)}</p><ul>${result.source.failures.map((f) => `<li>${escapeHtml(f)}</li>`).join('') || '<li>No discovery failures recorded.</li>'}</ul><h2>Discovered Sitemaps</h2><ul>${result.source.sitemapUrls.map((u) => `<li>${escapeHtml(u)}</li>`).join('')}</ul><h2>Top Issues</h2><table><thead><tr><th>Issue</th><th>Count</th></tr></thead><tbody>${topIssues || '<tr><td>No issues detected</td><td>0</td></tr>'}</tbody></table><h2>Recommended Priority</h2><ol><li>Fix error-level deep-checked pages first: failed fetches, bad statuses, and noindex sitemap conflicts.</li><li>Use index-only rows as the complete sitemap URL inventory.</li><li>If a large protected platform returns 0 URLs, try a direct XML sitemap URL and review discovery diagnostics.</li><li>Consolidate duplicate titles and descriptions where pages are meant to rank separately.</li><li>Add missing lastmod values where freshness matters.</li></ol><h2>URL Inventory and Page-Level Findings</h2><table><thead><tr><th>Page</th><th>Type</th><th>Mode</th><th>Status</th><th>Issues</th><th>Findings</th></tr></thead><tbody>${pageRows}</tbody></table>`);
 }
 
 function issueCounts(result: Result): Array<[string, number]> {
@@ -349,17 +397,13 @@ async function increment(env: Env, pages: number): Promise<void> {
   await env.SITEMAPPER_STATS.put('pages', String(current.pages + pages));
 }
 
-function groupBy<T>(items: T[], keyFn: (item: T) => string): Map<string, T[]> {
-  const map = new Map<string, T[]>();
-  for (const item of items) map.set(keyFn(item), [...(map.get(keyFn(item)) || []), item]);
-  return map;
-}
-
+function groupBy<T>(items: T[], keyFn: (item: T) => string): Map<string, T[]> { const map = new Map<string, T[]>(); for (const item of items) map.set(keyFn(item), [...(map.get(keyFn(item)) || []), item]); return map; }
 function normalizeUrl(input: string): string { const url = new URL(input); url.hash = ''; url.hostname = url.hostname.toLowerCase(); if (url.pathname !== '/') url.pathname = url.pathname.replace(/\/+$/, ''); return url.toString(); }
 function sameHost(a: string, b: string): boolean { try { return new URL(a).hostname === new URL(b).hostname; } catch { return false; } }
 function arrayOf<T>(value: T | T[] | undefined): T[] { if (!value) return []; return Array.isArray(value) ? value : [value]; }
 function textValue(value: unknown): string | undefined { if (typeof value === 'string' || typeof value === 'number') return String(value).trim(); return undefined; }
-function clean(value?: string): string | undefined { const cleaned = String(value || '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim(); return cleaned || undefined; }
+function clean(value?: string): string | undefined { const cleaned = decodeXml(String(value || '')).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim(); return cleaned || undefined; }
+function decodeXml(value: string): string { return value.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'"); }
 function meta(source: string, name: string): string | undefined { return new RegExp(`<meta[^>]+name=["']${name}["'][^>]+content=["']([^"']*)["'][^>]*>`, 'i').exec(source)?.[1] || new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]+name=["']${name}["'][^>]*>`, 'i').exec(source)?.[1]; }
 function canonicalOf(source: string): string | undefined { return /<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']*)["'][^>]*>/i.exec(source)?.[1] || /<link[^>]+href=["']([^"']*)["'][^>]+rel=["']canonical["'][^>]*>/i.exec(source)?.[1]; }
 function pageType(input: string): string { const url = new URL(input); const parts = url.pathname.split('/').filter(Boolean); if (!parts.length) return 'home'; if (parts[0] === 'archive') return 'archive'; if (parts[0] === 'cluster') return 'cluster'; if (parts[0] === 'canvas') return 'canvas'; if (parts[0] === 'source' || parts[0] === 'sources') return 'source'; if (parts[0] === 'story' || parts[0] === 'stories') return 'story'; if (['c', 'category', 'categories', 'tag', 'tags', 'topic', 'topics'].includes(parts[0])) return url.search ? 'category_page' : 'category'; if (parts.length === 1) return 'static'; return 'generated'; }
