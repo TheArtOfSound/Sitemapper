@@ -5,6 +5,7 @@ type Severity = 'error' | 'warning' | 'notice';
 type Issue = { severity: Severity; code: string; message: string };
 type Page = { url: string; path: string; type: string; section: string; title?: string; description?: string; canonical?: string; status?: number; lastmod?: string; issues: Issue[] };
 type Source = { robotsUrl: string; sitemapUrls: string[]; discoveredFromRobots: boolean; inputMode: 'site' | 'sitemap'; testedUrls: string[]; failures: string[]; compatibility: string };
+type CandidateSource = Source & { site: string };
 type Result = { site: string; generatedAt: string; source: Source; scores: { index: number; seo: number; sitemap: number }; stats: { pages: number; sections: number; errors: number; warnings: number; notices: number }; pages: Page[]; issues: Issue[] };
 
 const MAX_SITEMAPS = 24;
@@ -53,7 +54,7 @@ async function analyze(input: string): Promise<Result> {
   const discoveries = await discoverCandidates(target);
   const sourceIssues: Issue[] = [];
   let bestLoad: Awaited<ReturnType<typeof loadSitemaps>> | undefined;
-  let bestSource: Source | undefined;
+  let bestSource: CandidateSource | undefined;
 
   for (const source of discoveries) {
     const load = await loadSitemaps(source.site, source.sitemapUrls);
@@ -79,17 +80,18 @@ async function analyze(input: string): Promise<Result> {
   const stats = summarize(pages, allIssues);
   const compatibility = compatibilityVerdict(bestLoad.entries.length, bestLoad.failed.length, stats.errors);
   bestSource.compatibility = compatibility;
+  const { site, ...sourceForResult } = bestSource;
 
-  return { site: bestSource.site, generatedAt: new Date().toISOString(), source: { ...bestSource, sitemapUrls: bestLoad.loaded.length ? bestLoad.loaded : bestSource.sitemapUrls }, scores: score(pages, sourceIssues), stats, pages, issues: sourceIssues };
+  return { site, generatedAt: new Date().toISOString(), source: { ...sourceForResult, sitemapUrls: bestLoad.loaded.length ? bestLoad.loaded : bestSource.sitemapUrls }, scores: score(pages, sourceIssues), stats, pages, issues: sourceIssues };
 }
 
-async function discoverCandidates(target: { input: string; site: string; inputMode: 'site' | 'sitemap' }): Promise<Array<Source & { site: string }>> {
+async function discoverCandidates(target: { input: string; site: string; inputMode: 'site' | 'sitemap' }): Promise<CandidateSource[]> {
   if (target.inputMode === 'sitemap') {
     return [{ site: new URL(target.input).origin, robotsUrl: `${new URL(target.input).origin}/robots.txt`, sitemapUrls: [target.input], discoveredFromRobots: false, inputMode: 'sitemap', testedUrls: [target.input], failures: [], compatibility: 'Direct sitemap input.' }];
   }
 
   const urls = candidateSiteOrigins(target.site);
-  const out: Array<Source & { site: string }> = [];
+  const out: CandidateSource[] = [];
   for (const site of urls) {
     const origin = new URL(site).origin;
     const robotsUrl = `${origin}/robots.txt`;
