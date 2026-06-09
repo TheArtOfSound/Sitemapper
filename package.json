@@ -1,0 +1,45 @@
+{
+  "name": "sitemapper",
+  "version": "0.1.0",
+  "description": "Generate public searchable site indexes from sitemap.xml, with built-in SEO and crawlability checks.",
+  "type": "module",
+  "bin": {
+    "sitemapper": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "test": "vitest run",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": [
+    "sitemap",
+    "seo",
+    "crawlability",
+    "site-index",
+    "static-site",
+    "robots-txt"
+  ],
+  "author": "TheArtOfSound",
+  "license": "MIT",
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "commander": "^12.1.0",
+    "fast-xml-parser": "^4.5.0",
+    "p-limit": "^6.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
