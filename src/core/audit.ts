@@ -1,5 +1,6 @@
 import pLimit from 'p-limit';
 import type { PageIssue, PageRecord, RawSitemapEntry, SitemapperOptions, SitemapperResult, SitemapperScores, SitemapperStats } from '../types.js';
+import { canonicalDedupeKey } from '../utils/url.js';
 import { fetchText } from './fetch.js';
 import { buildPageFromHtml } from './page.js';
 import { discoverSitemaps } from './discover.js';
@@ -23,7 +24,8 @@ export async function runAudit(options: SitemapperOptions): Promise<SitemapperRe
     rootIssues.push({ severity: 'warning', code: 'MAX_PAGES_LIMIT_REACHED', message: `Checked first ${options.maxPages} pages out of ${sitemapLoad.entries.length}.` });
   }
 
-  const pages = await inspectPages(entries, options);
+  const inspectedPages = await inspectPages(entries, options);
+  const pages = dedupePages(inspectedPages, rootIssues);
   const duplicateIssues = findDuplicateMetadataIssues(pages);
   const pagesWithDuplicates = pages.map((page) => ({
     ...page,
@@ -58,6 +60,39 @@ async function inspectPages(entries: RawSitemapEntry[], options: SitemapperOptio
   return Promise.all(tasks);
 }
 
+function dedupePages(pages: PageRecord[], rootIssues: PageIssue[]): PageRecord[] {
+  const byKey = new Map<string, PageRecord>();
+  let duplicateCount = 0;
+
+  for (const page of pages) {
+    const key = canonicalDedupeKey(page.canonical || page.finalUrl || page.url);
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, page);
+      continue;
+    }
+
+    duplicateCount += 1;
+    byKey.set(key, chooseBetterPage(existing, page));
+  }
+
+  if (duplicateCount > 0) {
+    rootIssues.push({ severity: 'notice', code: 'DUPLICATE_URLS_DEDUPED', message: `${duplicateCount} duplicate-ish sitemap URLs were collapsed in the public index.` });
+  }
+
+  return Array.from(byKey.values()).sort((a, b) => a.url.localeCompare(b.url));
+}
+
+function chooseBetterPage(a: PageRecord, b: PageRecord): PageRecord {
+  const aScore = pageCompletenessScore(a);
+  const bScore = pageCompletenessScore(b);
+  return bScore > aScore ? b : a;
+}
+
+function pageCompletenessScore(page: PageRecord): number {
+  return Number(Boolean(page.title)) * 3 + Number(Boolean(page.description)) * 2 + Number(Boolean(page.lastmod)) + Number(page.status === 200) * 2;
+}
+
 function findDuplicateMetadataIssues(pages: PageRecord[]): Map<string, PageIssue[]> {
   const byTitle = new Map<string, PageRecord[]>();
   const byDescription = new Map<string, PageRecord[]>();
@@ -70,7 +105,7 @@ function findDuplicateMetadataIssues(pages: PageRecord[]): Map<string, PageIssue
   const issues = new Map<string, PageIssue[]>();
   for (const group of byTitle.values()) {
     if (group.length > 1) {
-      for (const page of group) addIssue(issues, page.url, { severity: 'warning', code: 'DUPLICATE_TITLE', message: 'Title is duplicated on another indexed page.' });
+      for (const page of group) addIssue(issues, page.url, { severity: duplicateSeverity(page), code: 'DUPLICATE_TITLE', message: 'Title is duplicated on another indexed page.' });
     }
   }
   for (const group of byDescription.values()) {
@@ -80,6 +115,10 @@ function findDuplicateMetadataIssues(pages: PageRecord[]): Map<string, PageIssue
   }
 
   return issues;
+}
+
+function duplicateSeverity(page: PageRecord): 'warning' | 'notice' {
+  return ['cluster', 'archive', 'category_page', 'canvas', 'generated'].includes(page.pageType) ? 'notice' : 'warning';
 }
 
 function addToMap(map: Map<string, PageRecord[]>, key: string, value: PageRecord): void {
@@ -106,21 +145,38 @@ function stats(pages: PageRecord[], rootIssues: PageIssue[]): SitemapperStats {
 }
 
 function score(pages: PageRecord[], rootIssues: PageIssue[]): SitemapperScores {
-  const total = Math.max(pages.length, 1);
+  const totalWeight = Math.max(weightedPageTotal(pages), 1);
+  const weightedMissingTitle = weightedCount(pages, (page) => !page.title);
+  const weightedMissingDescription = weightedCount(pages, (page) => !page.description);
   const errors = [...rootIssues, ...pages.flatMap((page) => page.issues)].filter((issue) => issue.severity === 'error').length;
   const warnings = [...rootIssues, ...pages.flatMap((page) => page.issues)].filter((issue) => issue.severity === 'warning').length;
-  const missingTitle = pages.filter((page) => !page.title).length;
-  const missingDescription = pages.filter((page) => !page.description).length;
+  const notices = [...rootIssues, ...pages.flatMap((page) => page.issues)].filter((issue) => issue.severity === 'notice').length;
   const sections = new Set(pages.map((page) => page.section)).size;
-  const missingLastmod = pages.filter((page) => !page.lastmod).length;
+  const missingLastmod = weightedCount(pages, (page) => !page.lastmod);
 
   return {
-    index: clamp(100 - Math.round((missingTitle / total) * 30) - Math.max(0, 10 - sections) * 2),
-    seo: clamp(100 - errors * 8 - warnings * 2 - Math.round((missingDescription / total) * 20)),
-    sitemap: clamp(100 - rootIssues.filter((issue) => issue.severity === 'error').length * 15 - Math.round((missingLastmod / total) * 15))
+    index: clamp(100 - Math.round((weightedMissingTitle / totalWeight) * 20) - Math.max(0, 10 - sections) * 2),
+    seo: clamp(100 - errors * 10 - warnings * 1.25 - notices * 0.15 - Math.round((weightedMissingDescription / totalWeight) * 12)),
+    sitemap: clamp(100 - rootIssues.filter((issue) => issue.severity === 'error').length * 15 - Math.round((missingLastmod / totalWeight) * 10))
   };
 }
 
+function weightedPageTotal(pages: PageRecord[]): number {
+  return pages.reduce((sum, page) => sum + pageWeight(page), 0);
+}
+
+function weightedCount(pages: PageRecord[], predicate: (page: PageRecord) => boolean): number {
+  return pages.reduce((sum, page) => sum + (predicate(page) ? pageWeight(page) : 0), 0);
+}
+
+function pageWeight(page: PageRecord): number {
+  if (['home', 'static'].includes(page.pageType)) return 1;
+  if (['category', 'source'].includes(page.pageType)) return 0.75;
+  if (['category_page', 'archive', 'canvas'].includes(page.pageType)) return 0.35;
+  if (['cluster', 'story', 'generated'].includes(page.pageType)) return 0.25;
+  return 0.5;
+}
+
 function clamp(value: number): number {
-  return Math.max(0, Math.min(100, value));
+  return Math.max(0, Math.min(100, Math.round(value)));
 }
