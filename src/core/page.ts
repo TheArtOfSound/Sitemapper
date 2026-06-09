@@ -1,11 +1,14 @@
 import * as cheerio from 'cheerio';
 import type { PageIssue, PageRecord, RawSitemapEntry } from '../types.js';
-import { pathFromUrl, sectionFromPath } from '../utils/url.js';
+import { displayPathFromUrl, pageTypeFromUrl, pathFromUrl, sectionFromUrl } from '../utils/url.js';
 
 export function buildPageFromHtml(entry: RawSitemapEntry, status: number | undefined, finalUrl: string | undefined, html: string | undefined): PageRecord {
   const issues: PageIssue[] = [];
   const path = pathFromUrl(entry.url);
-  const section = sectionFromPath(path);
+  const displayPath = displayPathFromUrl(entry.url);
+  const section = sectionFromUrl(entry.url);
+  const pageType = pageTypeFromUrl(entry.url);
+  const isGenerated = ['archive', 'cluster', 'category_page', 'canvas', 'story', 'generated'].includes(pageType);
 
   let title: string | undefined;
   let description: string | undefined;
@@ -34,17 +37,17 @@ export function buildPageFromHtml(entry: RawSitemapEntry, status: number | undef
   }
 
   if (!title) {
-    issues.push({ severity: 'warning', code: 'MISSING_TITLE', message: 'Page is missing a <title> tag.' });
+    issues.push({ severity: isGenerated ? 'notice' : 'warning', code: 'MISSING_TITLE', message: 'Page is missing a <title> tag.' });
   } else {
     if (title.length < 15) issues.push({ severity: 'notice', code: 'SHORT_TITLE', message: 'Title is very short.' });
-    if (title.length > 65) issues.push({ severity: 'notice', code: 'LONG_TITLE', message: 'Title may be too long for search results.' });
+    if (title.length > 75) issues.push({ severity: isGenerated ? 'notice' : 'warning', code: 'LONG_TITLE', message: 'Title may be too long for search results.' });
   }
 
   if (!description) {
-    issues.push({ severity: 'warning', code: 'MISSING_META_DESCRIPTION', message: 'Page is missing a meta description.' });
+    issues.push({ severity: isGenerated ? 'notice' : 'warning', code: 'MISSING_META_DESCRIPTION', message: 'Page is missing a meta description.' });
   } else {
     if (description.length < 50) issues.push({ severity: 'notice', code: 'SHORT_META_DESCRIPTION', message: 'Meta description is short.' });
-    if (description.length > 170) issues.push({ severity: 'notice', code: 'LONG_META_DESCRIPTION', message: 'Meta description may be too long.' });
+    if (description.length > 180) issues.push({ severity: isGenerated ? 'notice' : 'warning', code: 'LONG_META_DESCRIPTION', message: 'Meta description may be too long.' });
   }
 
   if (!canonical) {
@@ -56,16 +59,19 @@ export function buildPageFromHtml(entry: RawSitemapEntry, status: number | undef
   }
 
   if (!entry.lastmod) {
-    issues.push({ severity: 'notice', code: 'MISSING_LASTMOD', message: 'Sitemap entry is missing lastmod.' });
+    issues.push({ severity: isGenerated ? 'notice' : 'warning', code: 'MISSING_LASTMOD', message: 'Sitemap entry is missing lastmod.' });
   }
 
   return {
     url: entry.url,
     path,
+    displayPath,
     section,
+    pageType,
     title,
     description,
     canonical,
+    finalUrl,
     lastmod: entry.lastmod,
     changefreq: entry.changefreq,
     priority: entry.priority,
