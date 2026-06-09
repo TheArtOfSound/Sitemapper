@@ -1,4 +1,4 @@
-import type { PageRecord, SitemapperResult } from '../types.js';
+import type { SitemapperResult } from '../types.js';
 
 export function renderHtml(result: SitemapperResult): string {
   const payload = JSON.stringify(result).replace(/</g, '\\u003c');
@@ -33,9 +33,12 @@ export function renderHtml(result: SitemapperResult): string {
     </header>
 
     <section class="panel controls">
-      <input id="search" type="search" placeholder="Search titles, URLs, sections, descriptions..." autocomplete="off" />
+      <input id="search" type="search" placeholder="Search titles, URLs, sections, descriptions, page types..." autocomplete="off" />
       <select id="sectionFilter" aria-label="Filter by section">
         <option value="">All sections</option>
+      </select>
+      <select id="typeFilter" aria-label="Filter by page type">
+        <option value="">All types</option>
       </select>
       <select id="issueFilter" aria-label="Filter by issue severity">
         <option value="">All pages</option>
@@ -68,6 +71,7 @@ export function renderHtml(result: SitemapperResult): string {
             <tr>
               <th>Page</th>
               <th>Section</th>
+              <th>Type</th>
               <th>Status</th>
               <th>Lastmod</th>
               <th>Issues</th>
@@ -110,7 +114,7 @@ function styles(): string {
 * { box-sizing: border-box; }
 body { margin:0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: radial-gradient(circle at top left, #17324d, var(--bg) 34rem); color:var(--text); }
 a { color:var(--accent); }
-.shell { width:min(1180px, calc(100% - 32px)); margin:0 auto; padding:48px 0; }
+.shell { width:min(1240px, calc(100% - 32px)); margin:0 auto; padding:48px 0; }
 .hero { padding:36px; border:1px solid var(--line); border-radius:28px; background:linear-gradient(135deg, rgba(128,191,255,.14), rgba(16,25,35,.9)); box-shadow:0 24px 80px rgba(0,0,0,.35); }
 .eyebrow { color:var(--accent); text-transform:uppercase; letter-spacing:.16em; font-size:12px; font-weight:800; margin:0 0 12px; }
 h1 { font-size:clamp(42px, 8vw, 92px); line-height:.92; margin:0; }
@@ -122,7 +126,7 @@ h2 { margin:0 0 16px; font-size:20px; }
 .stat strong, .score strong { display:block; margin-top:4px; font-size:24px; }
 .score.good strong { color:var(--good); } .score.warn strong { color:var(--warn); } .score.bad strong { color:var(--bad); }
 .panel { border:1px solid var(--line); background:rgba(16,25,35,.92); border-radius:24px; padding:22px; margin-top:18px; }
-.controls { display:grid; grid-template-columns:1fr 220px 180px; gap:12px; }
+.controls { display:grid; grid-template-columns:1fr 220px 180px 180px; gap:12px; }
 input, select { width:100%; border:1px solid var(--line); background:var(--soft); color:var(--text); border-radius:14px; padding:13px 14px; font-size:15px; }
 .grid.two { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
 .stack { display:grid; gap:10px; }
@@ -132,16 +136,17 @@ input, select { width:100%; border:1px solid var(--line); background:var(--soft)
 .tableHeader { display:flex; align-items:center; justify-content:space-between; gap:16px; }
 .tableHeader p { color:var(--muted); margin:0; }
 .tableWrap { overflow:auto; }
-table { width:100%; border-collapse:collapse; min-width:880px; }
+table { width:100%; border-collapse:collapse; min-width:1040px; }
 th, td { text-align:left; border-bottom:1px solid var(--line); padding:13px 10px; vertical-align:top; }
 th { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.08em; }
 td .title { font-weight:750; } td .url { color:var(--muted); font-size:13px; margin-top:4px; word-break:break-all; }
-.badge { display:inline-flex; border:1px solid var(--line); border-radius:999px; padding:4px 8px; font-size:12px; margin:2px; color:var(--muted); }
+.type { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.05em; }
+.badge { display:inline-flex; border:1px solid var(--line); border-radius:999px; padding:4px 8px; font-size:12px; margin:2px; color:var(--muted); white-space:nowrap; }
 .badge.error { color:var(--bad); border-color:rgba(255,123,114,.5); } .badge.warning { color:var(--warn); border-color:rgba(242,204,96,.5); } .badge.notice { color:var(--accent); border-color:rgba(128,191,255,.45); }
 .actions { display:flex; gap:8px; }
 button, .button { border:1px solid var(--line); background:var(--soft); color:var(--text); padding:8px 10px; border-radius:12px; text-decoration:none; cursor:pointer; }
 .sources ul { margin-top:8px; }
-@media (max-width: 800px) { .controls, .grid.two { grid-template-columns:1fr; } .hero { padding:24px; } }
+@media (max-width: 900px) { .controls, .grid.two { grid-template-columns:1fr; } .hero { padding:24px; } }
 `;
 }
 
@@ -151,6 +156,7 @@ const data = JSON.parse(document.getElementById('sitemapper-data').textContent);
 const pages = data.pages;
 const search = document.getElementById('search');
 const sectionFilter = document.getElementById('sectionFilter');
+const typeFilter = document.getElementById('typeFilter');
 const issueFilter = document.getElementById('issueFilter');
 const rows = document.getElementById('pageRows');
 const visibleCount = document.getElementById('visibleCount');
@@ -163,16 +169,17 @@ for (const section of sections) {
   sectionFilter.appendChild(option);
 }
 
-function severityCounts(page) {
-  return page.issues.reduce((acc, issue) => {
-    acc[issue.severity] = (acc[issue.severity] || 0) + 1;
-    return acc;
-  }, {});
+const types = [...new Set(pages.map(p => p.pageType || 'unknown'))].sort();
+for (const type of types) {
+  const option = document.createElement('option');
+  option.value = type;
+  option.textContent = humanize(type);
+  typeFilter.appendChild(option);
 }
 
 function issueBadges(page) {
   if (!page.issues.length) return '<span class="badge">clean</span>';
-  return page.issues.slice(0, 4).map(issue => '<span class="badge ' + issue.severity + '">' + issue.code + '</span>').join('') + (page.issues.length > 4 ? '<span class="badge">+' + (page.issues.length - 4) + '</span>' : '');
+  return page.issues.slice(0, 4).map(issue => '<span class="badge ' + issue.severity + '" title="' + escapeHtml(issue.message) + '">' + escapeHtml(humanize(issue.code)) + '</span>').join(' ') + (page.issues.length > 4 ? ' <span class="badge">+' + (page.issues.length - 4) + '</span>' : '');
 }
 
 function matchesIssue(page, filter) {
@@ -184,17 +191,19 @@ function matchesIssue(page, filter) {
 function render() {
   const q = search.value.trim().toLowerCase();
   const sec = sectionFilter.value;
+  const type = typeFilter.value;
   const issue = issueFilter.value;
   const filtered = pages.filter(page => {
-    const haystack = [page.title, page.url, page.path, page.section, page.description].filter(Boolean).join(' ').toLowerCase();
-    return (!q || haystack.includes(q)) && (!sec || page.section === sec) && matchesIssue(page, issue);
+    const haystack = [page.title, page.url, page.path, page.displayPath, page.section, page.pageType, page.description].filter(Boolean).join(' ').toLowerCase();
+    return (!q || haystack.includes(q)) && (!sec || page.section === sec) && (!type || page.pageType === type) && matchesIssue(page, issue);
   });
 
   visibleCount.textContent = String(filtered.length);
   rows.innerHTML = filtered.map(page => {
     return '<tr>' +
-      '<td><div class="title">' + escapeHtml(page.title || '(missing title)') + '</div><div class="url">' + escapeHtml(page.path) + '</div></td>' +
+      '<td><div class="title">' + escapeHtml(page.title || '(missing title)') + '</div><div class="url">' + escapeHtml(page.displayPath || page.path) + '</div></td>' +
       '<td>' + escapeHtml(page.section) + '</td>' +
+      '<td><span class="type">' + escapeHtml(humanize(page.pageType || 'unknown')) + '</span></td>' +
       '<td>' + (page.status || '—') + '</td>' +
       '<td>' + escapeHtml(page.lastmod || '—') + '</td>' +
       '<td>' + issueBadges(page) + '</td>' +
@@ -204,8 +213,18 @@ function render() {
 }
 
 function renderRecent() {
-  const recent = [...pages].filter(p => p.lastmod).sort((a, b) => String(b.lastmod).localeCompare(String(a.lastmod))).slice(0, 8);
-  document.getElementById('recentList').innerHTML = recent.map(page => '<div class="item"><strong>' + escapeHtml(page.title || page.path) + '</strong><span>' + escapeHtml(page.lastmod) + ' · ' + escapeHtml(page.path) + '</span></div>').join('') || '<p class="small">No lastmod values found.</p>';
+  const seen = new Set();
+  const recent = [...pages]
+    .filter(p => p.lastmod)
+    .sort((a, b) => String(b.lastmod).localeCompare(String(a.lastmod)))
+    .filter(p => {
+      const key = p.canonical || p.finalUrl || p.url;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 8);
+  document.getElementById('recentList').innerHTML = recent.map(page => '<div class="item"><strong>' + escapeHtml(page.title || page.displayPath || page.path) + '</strong><span>' + escapeHtml(page.lastmod) + ' · ' + escapeHtml(page.displayPath || page.path) + ' · ' + escapeHtml(humanize(page.pageType || 'unknown')) + '</span></div>').join('') || '<p class="small">No lastmod values found.</p>';
 }
 
 function renderSections() {
@@ -213,6 +232,10 @@ function renderSections() {
   for (const page of pages) counts.set(page.section, (counts.get(page.section) || 0) + 1);
   const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
   document.getElementById('sectionList').innerHTML = top.map(([section, count]) => '<div class="item"><strong>' + escapeHtml(section) + '</strong><span>' + count + ' pages</span></div>').join('');
+}
+
+function humanize(value) {
+  return String(value ?? '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
 function escapeHtml(value) {
@@ -229,6 +252,7 @@ document.addEventListener('click', event => {
 
 search.addEventListener('input', render);
 sectionFilter.addEventListener('change', render);
+typeFilter.addEventListener('change', render);
 issueFilter.addEventListener('change', render);
 renderRecent();
 renderSections();
