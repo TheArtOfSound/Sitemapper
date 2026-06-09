@@ -27,7 +27,7 @@ export async function runAudit(options: SitemapperOptions): Promise<SitemapperRe
   const duplicateIssues = findDuplicateMetadataIssues(pages);
   const pagesWithDuplicates = pages.map((page) => ({
     ...page,
-    issues: [...page.issues, ...duplicateIssues.get(page.url) ?? []]
+    issues: [...page.issues, ...(duplicateIssues.get(page.url) ?? [])]
   }));
 
   return {
