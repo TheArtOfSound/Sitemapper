@@ -3,16 +3,16 @@ import { XMLParser } from 'fast-xml-parser';
 type Env = { SITEMAPPER_STATS?: KVNamespace };
 type Severity = 'error' | 'warning' | 'notice';
 type Issue = { severity: Severity; code: string; message: string };
-type Page = { url: string; path: string; type: string; section: string; title?: string; description?: string; canonical?: string; status?: number; lastmod?: string; issues: Issue[] };
-type Source = { robotsUrl: string; sitemapUrls: string[]; discoveredFromRobots: boolean; inputMode: 'site' | 'sitemap'; testedUrls: string[]; failures: string[]; compatibility: string };
+type Page = { url: string; path: string; type: string; section: string; title?: string; description?: string; canonical?: string; status?: number; lastmod?: string; deepChecked: boolean; issues: Issue[] };
+type Source = { robotsUrl: string; sitemapUrls: string[]; discoveredFromRobots: boolean; inputMode: 'site' | 'sitemap'; testedUrls: string[]; failures: string[]; compatibility: string; discoveredUrlCount: number; deepCheckedCount: number };
 type CandidateSource = Source & { site: string };
 type Result = { site: string; generatedAt: string; source: Source; scores: { index: number; seo: number; sitemap: number }; stats: { pages: number; sections: number; errors: number; warnings: number; notices: number }; pages: Page[]; issues: Issue[] };
 
-const MAX_SITEMAPS = 24;
-const MAX_URLS = 4000;
-const MAX_PAGES = 120;
+const MAX_SITEMAPS = 80;
+const MAX_URLS = 25000;
+const MAX_DEEP_CHECK_PAGES = 500;
 const TIMEOUT = 7000;
-const UA = 'SitemapperWorker/0.5 (+https://github.com/TheArtOfSound/Sitemapper)';
+const UA = 'SitemapperWorker/0.6 (+https://github.com/TheArtOfSound/Sitemapper)';
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -60,7 +60,7 @@ async function analyze(input: string): Promise<Result> {
     const load = await loadSitemaps(source.site, source.sitemapUrls);
     source.testedUrls.push(...load.loaded, ...load.failed);
     source.failures.push(...load.failures);
-    if (!bestLoad || load.entries.length > bestLoad.entries.length) {
+    if (!bestLoad || load.entries.length > bestLoad.entries.length || (load.loaded.length > 0 && bestLoad.loaded.length === 0)) {
       bestLoad = load;
       bestSource = source;
     }
@@ -68,26 +68,35 @@ async function analyze(input: string): Promise<Result> {
   }
 
   if (!bestLoad || !bestSource) throw new Error('No discovery attempt was produced.');
-  if (!bestSource.discoveredFromRobots && bestSource.inputMode === 'site') sourceIssues.push({ severity: 'notice', code: 'ROBOTS_NO_SITEMAP_REFERENCE', message: 'robots.txt did not expose a Sitemap entry; tried common sitemap locations and host variants.' });
+  if (!bestSource.discoveredFromRobots && bestSource.inputMode === 'site') sourceIssues.push({ severity: 'notice', code: 'ROBOTS_NO_SITEMAP_REFERENCE', message: 'robots.txt did not expose a usable Sitemap entry; tried common sitemap locations and host variants.' });
   for (const failed of bestLoad.failed) sourceIssues.push({ severity: 'warning', code: 'SITEMAP_FETCH_FAILED', message: `Could not load sitemap: ${failed}` });
-  for (const failure of bestLoad.failures.slice(0, 8)) sourceIssues.push({ severity: 'notice', code: 'DISCOVERY_NOTE', message: failure });
-  if (bestLoad.entries.length === 0) sourceIssues.push({ severity: 'error', code: 'NO_SITEMAP_URLS_FOUND', message: 'No URLs were found. The site may not expose a sitemap, may block datacenter fetches, or may require a direct sitemap URL.' });
-  if (bestLoad.entries.length > MAX_PAGES) sourceIssues.push({ severity: 'notice', code: 'SAMPLE_LIMIT_REACHED', message: `Analyzed ${MAX_PAGES} sample pages from ${bestLoad.entries.length} discovered sitemap URLs.` });
+  for (const failure of bestLoad.failures.slice(0, 12)) sourceIssues.push({ severity: 'notice', code: 'DISCOVERY_NOTE', message: failure });
+  if (bestLoad.entries.length === 0 && bestLoad.loaded.length > 0) sourceIssues.push({ severity: 'error', code: 'SITEMAPS_FOUND_BUT_UNUSABLE', message: 'Sitemap references were found, but no usable URL entries could be extracted. The sitemap files may be blocked, non-standard, empty, or not XML sitemap files.' });
+  if (bestLoad.entries.length === 0 && bestLoad.loaded.length === 0) sourceIssues.push({ severity: 'error', code: 'NO_SITEMAP_URLS_FOUND', message: 'No usable sitemap URLs were found. The site may not expose a sitemap, may block datacenter fetches, or may require a direct sitemap URL.' });
+  if (bestLoad.entries.length > MAX_URLS) sourceIssues.push({ severity: 'notice', code: 'URL_INDEX_LIMIT_REACHED', message: `Indexed first ${MAX_URLS} discovered sitemap URLs.` });
+  if (bestLoad.entries.length > MAX_DEEP_CHECK_PAGES) sourceIssues.push({ severity: 'notice', code: 'DEEP_CHECK_LIMIT_REACHED', message: `Deep checked ${MAX_DEEP_CHECK_PAGES} pages and kept the remaining ${bestLoad.entries.length - MAX_DEEP_CHECK_PAGES} URLs as index-only rows.` });
 
-  const pages = await inspect(bestLoad.entries.slice(0, MAX_PAGES));
-  addDuplicateIssues(pages);
+  const deepEntries = bestLoad.entries.slice(0, MAX_DEEP_CHECK_PAGES);
+  const indexOnlyEntries = bestLoad.entries.slice(MAX_DEEP_CHECK_PAGES);
+  const deepPages = await inspect(deepEntries);
+  const indexOnlyPages = indexOnlyEntries.map(buildIndexOnlyPage);
+  const pages = [...deepPages, ...indexOnlyPages];
+  addDuplicateIssues(deepPages);
+
   const allIssues = [...sourceIssues, ...pages.flatMap((p) => p.issues)];
   const stats = summarize(pages, allIssues);
-  const compatibility = compatibilityVerdict(bestLoad.entries.length, bestLoad.failed.length, stats.errors);
+  const compatibility = compatibilityVerdict(bestLoad.entries.length, bestLoad.loaded.length, bestLoad.failed.length, deepPages.filter((p) => p.issues.some((i) => i.severity === 'error')).length);
   bestSource.compatibility = compatibility;
+  bestSource.discoveredUrlCount = bestLoad.entries.length;
+  bestSource.deepCheckedCount = deepPages.length;
   const { site, ...sourceForResult } = bestSource;
 
-  return { site, generatedAt: new Date().toISOString(), source: { ...sourceForResult, sitemapUrls: bestLoad.loaded.length ? bestLoad.loaded : bestSource.sitemapUrls }, scores: score(pages, sourceIssues), stats, pages, issues: sourceIssues };
+  return { site, generatedAt: new Date().toISOString(), source: { ...sourceForResult, sitemapUrls: bestLoad.loaded.length ? bestLoad.loaded : bestSource.sitemapUrls }, scores: score(deepPages, sourceIssues), stats, pages, issues: sourceIssues };
 }
 
 async function discoverCandidates(target: { input: string; site: string; inputMode: 'site' | 'sitemap' }): Promise<CandidateSource[]> {
   if (target.inputMode === 'sitemap') {
-    return [{ site: new URL(target.input).origin, robotsUrl: `${new URL(target.input).origin}/robots.txt`, sitemapUrls: [target.input], discoveredFromRobots: false, inputMode: 'sitemap', testedUrls: [target.input], failures: [], compatibility: 'Direct sitemap input.' }];
+    return [{ site: new URL(target.input).origin, robotsUrl: `${new URL(target.input).origin}/robots.txt`, sitemapUrls: [target.input], discoveredFromRobots: false, inputMode: 'sitemap', testedUrls: [target.input], failures: [], compatibility: 'Direct sitemap input.', discoveredUrlCount: 0, deepCheckedCount: 0 }];
   }
 
   const urls = candidateSiteOrigins(target.site);
@@ -99,16 +108,19 @@ async function discoverCandidates(target: { input: string; site: string; inputMo
     const failures: string[] = [];
     try {
       const robots = await fetchText(robotsUrl);
-      const found = extractSitemaps(robots.text).filter((u) => sameHost(u, site));
+      const extracted = extractSitemaps(robots.text);
+      const ignored = extracted.ignored;
+      const found = extracted.urls.filter((u) => sameHost(u, site));
+      for (const ignoredUrl of ignored.slice(0, 8)) failures.push(`Ignored non-XML Sitemap directive: ${ignoredUrl}`);
       if (found.length) {
-        out.push({ site, robotsUrl, sitemapUrls: found, discoveredFromRobots: true, inputMode: 'site', testedUrls, failures, compatibility: 'robots.txt exposed sitemap URLs.' });
+        out.push({ site, robotsUrl, sitemapUrls: found, discoveredFromRobots: true, inputMode: 'site', testedUrls, failures, compatibility: 'robots.txt exposed sitemap URLs.', discoveredUrlCount: 0, deepCheckedCount: 0 });
         continue;
       }
-      failures.push(`${robotsUrl} loaded but did not expose Sitemap directives.`);
+      failures.push(`${robotsUrl} loaded but did not expose usable XML Sitemap directives.`);
     } catch (error) {
       failures.push(`${robotsUrl} failed: ${errorMessage(error)}`);
     }
-    out.push({ site, robotsUrl, sitemapUrls: commonSitemapUrls(origin), discoveredFromRobots: false, inputMode: 'site', testedUrls, failures, compatibility: 'Common sitemap fallback.' });
+    out.push({ site, robotsUrl, sitemapUrls: commonSitemapUrls(origin), discoveredFromRobots: false, inputMode: 'site', testedUrls, failures, compatibility: 'Common sitemap fallback.', discoveredUrlCount: 0, deepCheckedCount: 0 });
   }
   return out;
 }
@@ -119,7 +131,7 @@ function normalizeInput(input: string): { input: string; site: string; inputMode
   const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
   const url = new URL(withProtocol);
   url.hash = '';
-  const isSitemap = /sitemap/i.test(url.pathname) || /\.xml(\.gz)?$/i.test(url.pathname);
+  const isSitemap = isLikelySitemapUrl(url.toString());
   if (isSitemap) return { input: normalizeUrl(url.toString()), site: url.origin, inputMode: 'sitemap' };
   url.search = '';
   url.pathname = url.pathname === '/' ? '' : url.pathname.replace(/\/+$/, '');
@@ -139,13 +151,25 @@ function commonSitemapUrls(origin: string): string[] {
   return [`${origin}/sitemap.xml`, `${origin}/sitemap_index.xml`, `${origin}/sitemap-index.xml`, `${origin}/wp-sitemap.xml`, `${origin}/sitemap/sitemap.xml`];
 }
 
-function extractSitemaps(text: string): string[] {
-  return text.split(/\r?\n/).map((line) => line.trim()).filter((line) => /^sitemap\s*:/i.test(line)).map((line) => line.replace(/^sitemap\s*:/i, '').trim()).filter(Boolean);
+function extractSitemaps(text: string): { urls: string[]; ignored: string[] } {
+  const raw = text.split(/\r?\n/).map((line) => line.trim()).filter((line) => /^sitemap\s*:/i.test(line)).map((line) => line.replace(/^sitemap\s*:/i, '').trim()).filter(Boolean);
+  return { urls: raw.filter(isLikelySitemapUrl), ignored: raw.filter((url) => !isLikelySitemapUrl(url)) };
+}
+
+function isLikelySitemapUrl(input: string): boolean {
+  try {
+    const url = new URL(input);
+    const path = url.pathname.toLowerCase();
+    if (path.endsWith('/llms.txt') || path.endsWith('/robots.txt')) return false;
+    return /sitemap/.test(path) || /\.xml(\.gz)?$/.test(path);
+  } catch {
+    return false;
+  }
 }
 
 async function loadSitemaps(site: string, starts: string[]): Promise<{ entries: Array<{ url: string; lastmod?: string }>; loaded: string[]; failed: string[]; failures: string[] }> {
   const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '' });
-  const queue = starts.map(normalizeUrl);
+  const queue = starts.filter(isLikelySitemapUrl).map(normalizeUrl);
   const seen = new Set<string>();
   const entries = new Map<string, { url: string; lastmod?: string }>();
   const loaded: string[] = [];
@@ -160,21 +184,32 @@ async function loadSitemaps(site: string, starts: string[]): Promise<{ entries: 
       const response = await fetchText(sitemap);
       const lower = response.text.slice(0, 500).toLowerCase();
       if (looksLikeBotBlock(response.status, lower)) failures.push(`${sitemap} looks blocked or challenged by bot protection.`);
+      if (response.contentType && !/xml|text|gzip/i.test(response.contentType)) failures.push(`${sitemap} returned non-sitemap content-type: ${response.contentType}.`);
       const xml = parser.parse(response.text);
       loaded.push(sitemap);
 
+      let addedChildren = 0;
+      let addedUrls = 0;
       for (const child of arrayOf(xml?.sitemapindex?.sitemap)) {
         const loc = textValue(child?.loc);
-        if (loc && sameHost(loc, site) && !seen.has(normalizeUrl(loc))) queue.push(normalizeUrl(loc));
+        if (loc && isLikelySitemapUrl(loc) && sameHost(loc, site) && !seen.has(normalizeUrl(loc))) {
+          queue.push(normalizeUrl(loc));
+          addedChildren += 1;
+        }
       }
       for (const item of arrayOf(xml?.urlset?.url)) {
         const loc = textValue(item?.loc);
         if (!loc || !sameHost(loc, site)) continue;
         const key = normalizeUrl(loc);
-        if (!entries.has(key)) entries.set(key, { url: key, lastmod: textValue(item?.lastmod) });
+        if (!entries.has(key)) {
+          entries.set(key, { url: key, lastmod: textValue(item?.lastmod) });
+          addedUrls += 1;
+        }
         if (entries.size >= MAX_URLS) break;
       }
       if (!xml?.sitemapindex && !xml?.urlset) failures.push(`${sitemap} loaded, but did not look like a sitemap index or urlset.`);
+      if (xml?.sitemapindex && addedChildren === 0) failures.push(`${sitemap} was a sitemap index, but no same-host XML child sitemaps were usable.`);
+      if (xml?.urlset && addedUrls === 0) failures.push(`${sitemap} was a urlset, but no same-host URLs were extracted.`);
     } catch (error) {
       failed.push(sitemap);
       failures.push(`${sitemap} failed: ${errorMessage(error)}`);
@@ -200,6 +235,10 @@ async function inspect(entries: Array<{ url: string; lastmod?: string }>): Promi
     pages.push(...result);
   }
   return pages;
+}
+
+function buildIndexOnlyPage(entry: { url: string; lastmod?: string }): Page {
+  return { url: entry.url, path: new URL(entry.url).pathname || '/', type: pageType(entry.url), section: section(entry.url), lastmod: entry.lastmod, deepChecked: false, issues: [{ severity: 'notice', code: 'INDEX_ONLY_NOT_FETCHED', message: 'URL was discovered from sitemap but not deep-fetched for metadata in this Worker run.' }] };
 }
 
 function buildPage(entry: { url: string; lastmod?: string }, status?: number, finalUrl?: string, body?: string, contentType?: string): Page {
@@ -228,7 +267,7 @@ function buildPage(entry: { url: string; lastmod?: string }, status?: number, fi
   if (robots?.includes('noindex')) issues.push({ severity: 'error', code: 'NOINDEX_IN_SITEMAP', message: 'Page appears in sitemap but has noindex.' });
   if (!entry.lastmod) issues.push({ severity: generated ? 'notice' : 'warning', code: 'MISSING_LASTMOD', message: 'Sitemap entry is missing lastmod.' });
 
-  return { url: entry.url, path: new URL(entry.url).pathname || '/', type, section: section(entry.url), title, description, canonical, status, lastmod: entry.lastmod, issues };
+  return { url: entry.url, path: new URL(entry.url).pathname || '/', type, section: section(entry.url), title, description, canonical, status, lastmod: entry.lastmod, deepChecked: true, issues };
 }
 
 async function fetchText(url: string): Promise<{ status: number; url: string; text: string; contentType: string }> {
@@ -254,16 +293,18 @@ function summarize(pages: Page[], issues: Issue[]): Result['stats'] {
 }
 
 function score(pages: Page[], root: Issue[]): Result['scores'] {
-  const all = [...root, ...pages.flatMap((p) => p.issues)];
-  const total = Math.max(pages.length, 1);
-  return { index: clamp(100 - Math.round((pages.filter((p) => !p.title).length / total) * 20)), seo: clamp(100 - all.filter((i) => i.severity === 'error').length * 10 - all.filter((i) => i.severity === 'warning').length * 1.25 - all.filter((i) => i.severity === 'notice').length * 0.15 - Math.round((pages.filter((p) => !p.description).length / total) * 12)), sitemap: clamp(100 - Math.round((pages.filter((p) => !p.lastmod).length / total) * 10)) };
+  const deepPages = pages.filter((p) => p.deepChecked);
+  const all = [...root, ...deepPages.flatMap((p) => p.issues)];
+  const total = Math.max(deepPages.length, 1);
+  return { index: clamp(100 - Math.round((deepPages.filter((p) => !p.title).length / total) * 20)), seo: clamp(100 - all.filter((i) => i.severity === 'error').length * 10 - all.filter((i) => i.severity === 'warning').length * 1.25 - all.filter((i) => i.severity === 'notice').length * 0.15 - Math.round((deepPages.filter((p) => !p.description).length / total) * 12)), sitemap: clamp(100 - Math.round((pages.filter((p) => !p.lastmod).length / Math.max(pages.length, 1)) * 10)) };
 }
 
-function compatibilityVerdict(entryCount: number, failedCount: number, errorCount: number): string {
+function compatibilityVerdict(entryCount: number, loadedSitemaps: number, failedCount: number, deepErrorCount: number): string {
+  if (entryCount === 0 && loadedSitemaps > 0) return 'Sitemap references were found, but no usable URL entries could be extracted. This is usually an unsupported, blocked, empty, or non-standard sitemap setup.';
   if (entryCount === 0) return 'Not compatible yet: no accessible sitemap URLs were found.';
-  if (errorCount > entryCount * 0.5) return 'Partially compatible: sitemap was found, but many pages could not be fetched.';
-  if (failedCount > 0) return 'Mostly compatible: some sitemap files failed, but usable URLs were found.';
-  return 'Compatible: sitemap URLs and page metadata were accessible.';
+  if (deepErrorCount > Math.max(10, entryCount * 0.5)) return 'Partially compatible: sitemap URLs were discovered, but many sampled pages could not be fetched.';
+  if (failedCount > 0) return 'Mostly compatible: some sitemap files failed, but usable URLs were indexed.';
+  return 'Compatible: sitemap URLs were indexed and sampled page metadata was accessible.';
 }
 
 function looksLikeBotBlock(status: number, text: string): boolean {
@@ -271,18 +312,18 @@ function looksLikeBotBlock(status: number, text: string): boolean {
 }
 
 function appHtml(): string {
-  return shell(`<section class="home"><h1 class="logo">Sitemapper<small>real sitemap index + SEO checker</small></h1><form id="mapForm" class="box" action="/api/report" method="get"><span>⌕</span><input id="site" name="site" value="https://wesearch.press" autocomplete="url"><button id="mapBtn" type="submit">Map Site</button></form><p>Enter a public website or direct sitemap URL. Protected platforms may block analysis; normal public sites work best.</p><p><a href="/api/report?site=https%3A%2F%2Fwesearch.press">Open WeSearch report directly</a> · <a href="/api/report?site=https%3A%2F%2Fwesearch.press%2Fsitemap_index.xml">Try direct sitemap URL</a> · <a href="/api/analyze?site=https%3A%2F%2Fwesearch.press">Raw JSON</a></p><p id="status" class="muted">Ready. Stats loading…</p><div id="results"></div></section><script>${clientJs()}</script>`);
+  return shell(`<section class="home"><h1 class="logo">Sitemapper<small>real sitemap index + SEO checker</small></h1><form id="mapForm" class="box" action="/api/report" method="get"><span>⌕</span><input id="site" name="site" value="https://wesearch.press" autocomplete="url"><button id="mapBtn" type="submit">Map Site</button></form><p>Enter a public website or direct sitemap URL. Sitemapper indexes all discovered sitemap URLs it can reach, then deep-checks the first ${MAX_DEEP_CHECK_PAGES.toLocaleString()} pages for metadata.</p><p><a href="/api/report?site=https%3A%2F%2Fwesearch.press">Open WeSearch report directly</a> · <a href="/api/report?site=https%3A%2F%2Fwesearch.press%2Fsitemap_index.xml">Try direct sitemap URL</a> · <a href="/api/analyze?site=https%3A%2F%2Fwesearch.press">Raw JSON</a></p><p id="status" class="muted">Ready. Stats loading…</p><div id="results"></div></section><script>${clientJs()}</script>`);
 }
 
 function clientJs(): string {
-  return `const f=document.getElementById('mapForm'),s=document.getElementById('status'),r=document.getElementById('results'),b=document.getElementById('mapBtn');fetch('/api/stats').then(x=>x.json()).then(j=>s.textContent=j.runs.toLocaleString()+' tries · '+j.pages.toLocaleString()+' pages mapped').catch(()=>s.textContent='Stats unavailable. Form fallback is active.');f.addEventListener('submit',async e=>{e.preventDefault();const site=document.getElementById('site').value;b.textContent='Processing...';b.disabled=true;s.textContent='Running real server-side analysis...';r.innerHTML='<div class=progress>Fetching robots.txt, sitemap files, and page metadata…</div>';try{const res=await fetch('/api/analyze?site='+encodeURIComponent(site),{cache:'no-store'});const data=await res.json();if(!res.ok||data.error)throw new Error(data.error||'Request failed');s.textContent=data.source.compatibility+' About '+data.pages.length.toLocaleString()+' results for '+new URL(data.site).hostname;r.innerHTML='<p><a class=button href="/api/report?site='+encodeURIComponent(site)+'" target=_blank>Open SEO Specialist Report</a> <a href="/api/analyze?site='+encodeURIComponent(site)+'" target=_blank>Raw JSON</a></p>'+data.pages.slice(0,80).map(p=>'<article><h2><a href="'+esc(p.url)+'">'+esc(p.title||p.path)+'</a></h2><div class=url>'+esc(p.url)+'</div><p>'+esc(p.description||'No meta description found.')+'</p><small>'+esc(p.type)+' · '+esc(p.status||'—')+' · '+(p.issues||[]).length+' issues</small></article>').join('')}catch(err){s.textContent='Analysis failed: '+err.message;r.innerHTML='<p>The fallback report route still works as a normal form submit.</p><p><a class=button href="/api/report?site='+encodeURIComponent(site)+'">Open report route</a></p>'}finally{b.textContent='Map Site';b.disabled=false}});function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}`;
+  return `const f=document.getElementById('mapForm'),s=document.getElementById('status'),r=document.getElementById('results'),b=document.getElementById('mapBtn');fetch('/api/stats').then(x=>x.json()).then(j=>s.textContent=j.runs.toLocaleString()+' tries · '+j.pages.toLocaleString()+' pages mapped').catch(()=>s.textContent='Stats unavailable. Form fallback is active.');f.addEventListener('submit',async e=>{e.preventDefault();const site=document.getElementById('site').value;b.textContent='Processing...';b.disabled=true;s.textContent='Running real server-side analysis...';r.innerHTML='<div class=progress>Finding sitemap files, indexing URLs, and deep-checking sampled pages…</div>';try{const res=await fetch('/api/analyze?site='+encodeURIComponent(site),{cache:'no-store'});const data=await res.json();if(!res.ok||data.error)throw new Error(data.error||'Request failed');s.textContent=data.source.compatibility+' Indexed '+data.source.discoveredUrlCount.toLocaleString()+' URLs; deep checked '+data.source.deepCheckedCount.toLocaleString()+'.';r.innerHTML='<p><a class=button href="/api/report?site='+encodeURIComponent(site)+'" target=_blank>Open SEO Specialist Report</a> <a href="/api/analyze?site='+encodeURIComponent(site)+'" target=_blank>Raw JSON</a></p>'+data.pages.slice(0,120).map(p=>'<article><h2><a href="'+esc(p.url)+'">'+esc(p.title||p.path)+'</a></h2><div class=url>'+esc(p.url)+'</div><p>'+esc(p.description||(p.deepChecked?'No meta description found.':'Index-only URL. Not deep checked in this Worker run.'))+'</p><small>'+esc(p.type)+' · '+(p.deepChecked?'deep checked':'index only')+' · '+esc(p.status||'—')+' · '+(p.issues||[]).length+' issues</small></article>').join('')}catch(err){s.textContent='Analysis failed: '+err.message;r.innerHTML='<p>The fallback report route still works as a normal form submit.</p><p><a class=button href="/api/report?site='+encodeURIComponent(site)+'">Open report route</a></p>'}finally{b.textContent='Map Site';b.disabled=false}});function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}`;
 }
 
 function reportHtml(result: Result): string {
   const host = new URL(result.site).hostname;
   const topIssues = issueCounts(result).map(([issue, count]) => `<tr><td>${escapeHtml(humanize(issue))}</td><td>${count}</td></tr>`).join('');
-  const pageRows = result.pages.map((page) => `<tr><td><a href="${escapeAttr(page.url)}">${escapeHtml(page.title || page.path)}</a><br><small>${escapeHtml(page.url)}</small></td><td>${escapeHtml(page.type)}</td><td>${page.status || '—'}</td><td>${page.issues.length}</td><td>${escapeHtml(page.issues.slice(0, 5).map((i) => humanize(i.code)).join(', ') || 'Clean')}</td></tr>`).join('');
-  return shell(`<h1>Sitemapper SEO Specialist Report</h1><p class="muted">${escapeHtml(host)} · Generated ${escapeHtml(result.generatedAt)} · ${result.stats.pages} pages analyzed</p><p><button onclick="print()" class="button">Print / Save as PDF</button> <a href="/api/analyze?site=${encodeURIComponent(result.site)}">Raw JSON</a> <a href="/">Run another site</a></p><div class="verdict">${escapeHtml(result.source.compatibility)}</div><div class="scores"><div><b>${result.scores.index}</b><span>Index</span></div><div><b>${result.scores.seo}</b><span>SEO</span></div><div><b>${result.scores.sitemap}</b><span>Sitemap</span></div></div><h2>Executive Summary</h2><p>Analyzed ${result.stats.pages} pages across ${result.stats.sections} sections. Found ${result.stats.errors} errors, ${result.stats.warnings} warnings, and ${result.stats.notices} notices.</p><h2>Discovery Diagnostics</h2><p><strong>Input mode:</strong> ${escapeHtml(result.source.inputMode)}</p><p><strong>Robots URL:</strong> ${escapeHtml(result.source.robotsUrl)}</p><ul>${result.source.failures.map((f) => `<li>${escapeHtml(f)}</li>`).join('') || '<li>No discovery failures recorded.</li>'}</ul><h2>Discovered Sitemaps</h2><ul>${result.source.sitemapUrls.map((u) => `<li>${escapeHtml(u)}</li>`).join('')}</ul><h2>Top Issues</h2><table><thead><tr><th>Issue</th><th>Count</th></tr></thead><tbody>${topIssues || '<tr><td>No issues detected</td><td>0</td></tr>'}</tbody></table><h2>Recommended Priority</h2><ol><li>Fix error-level pages first: failed fetches, bad statuses, and noindex sitemap conflicts.</li><li>Review static pages before generated archive/category/cluster pages.</li><li>If analysis failed on a large protected platform, use a direct sitemap URL or a verified owned site.</li><li>Consolidate duplicate titles and descriptions where pages are meant to rank separately.</li><li>Add missing lastmod values where freshness matters.</li></ol><h2>Page-Level Findings</h2><table><thead><tr><th>Page</th><th>Type</th><th>Status</th><th>Issues</th><th>Findings</th></tr></thead><tbody>${pageRows}</tbody></table>`);
+  const pageRows = result.pages.map((page) => `<tr><td><a href="${escapeAttr(page.url)}">${escapeHtml(page.title || page.path)}</a><br><small>${escapeHtml(page.url)}</small></td><td>${escapeHtml(page.type)}</td><td>${page.deepChecked ? 'Deep checked' : 'Index only'}</td><td>${page.status || '—'}</td><td>${page.issues.length}</td><td>${escapeHtml(page.issues.slice(0, 5).map((i) => humanize(i.code)).join(', ') || 'Clean')}</td></tr>`).join('');
+  return shell(`<h1>Sitemapper SEO Specialist Report</h1><p class="muted">${escapeHtml(host)} · Generated ${escapeHtml(result.generatedAt)} · ${result.source.discoveredUrlCount.toLocaleString()} URLs indexed · ${result.source.deepCheckedCount.toLocaleString()} pages deep checked</p><p><button onclick="print()" class="button">Print / Save as PDF</button> <a href="/api/analyze?site=${encodeURIComponent(result.site)}">Raw JSON</a> <a href="/">Run another site</a></p><div class="verdict">${escapeHtml(result.source.compatibility)}</div><div class="scores"><div><b>${result.scores.index}</b><span>Index</span></div><div><b>${result.scores.seo}</b><span>SEO</span></div><div><b>${result.scores.sitemap}</b><span>Sitemap</span></div></div><h2>Executive Summary</h2><p>Indexed ${result.source.discoveredUrlCount.toLocaleString()} sitemap URLs across ${result.stats.sections} sections. Deep checked ${result.source.deepCheckedCount.toLocaleString()} pages for HTTP status, title, description, canonical, robots metadata, duplicate metadata, and sitemap freshness. Found ${result.stats.errors} errors, ${result.stats.warnings} warnings, and ${result.stats.notices} notices.</p><h2>Discovery Diagnostics</h2><p><strong>Input mode:</strong> ${escapeHtml(result.source.inputMode)}</p><p><strong>Robots URL:</strong> ${escapeHtml(result.source.robotsUrl)}</p><ul>${result.source.failures.map((f) => `<li>${escapeHtml(f)}</li>`).join('') || '<li>No discovery failures recorded.</li>'}</ul><h2>Discovered Sitemaps</h2><ul>${result.source.sitemapUrls.map((u) => `<li>${escapeHtml(u)}</li>`).join('')}</ul><h2>Top Issues</h2><table><thead><tr><th>Issue</th><th>Count</th></tr></thead><tbody>${topIssues || '<tr><td>No issues detected</td><td>0</td></tr>'}</tbody></table><h2>Recommended Priority</h2><ol><li>Fix error-level deep-checked pages first: failed fetches, bad statuses, and noindex sitemap conflicts.</li><li>Review static pages before generated archive/category/cluster pages.</li><li>Use index-only rows as the complete sitemap URL inventory.</li><li>If analysis failed on a large protected platform, use a direct XML sitemap URL or a verified owned site.</li><li>Consolidate duplicate titles and descriptions where pages are meant to rank separately.</li><li>Add missing lastmod values where freshness matters.</li></ol><h2>URL Inventory and Page-Level Findings</h2><table><thead><tr><th>Page</th><th>Type</th><th>Mode</th><th>Status</th><th>Issues</th><th>Findings</th></tr></thead><tbody>${pageRows}</tbody></table>`);
 }
 
 function issueCounts(result: Result): Array<[string, number]> {
@@ -292,7 +333,7 @@ function issueCounts(result: Result): Array<[string, number]> {
 }
 
 function shell(body: string): string {
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sitemapper</title><style>body{font:14px Arial,Helvetica,sans-serif;margin:0;color:#202124;background:#fff}header{height:44px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;padding:0 18px}.wrap,.home{max-width:980px;margin:54px auto;padding:0 18px}.logo{text-align:center;font-size:58px;font-weight:400;margin:0 0 24px}.logo small{display:block;font-size:13px;color:#5f6368}.box{height:46px;display:flex;align-items:center;border:1px solid #dfe1e5;border-radius:24px;box-shadow:0 1px 6px rgba(32,33,36,.14);padding:0 12px}.box input{border:0;outline:0;flex:1;font-size:16px}.box button,.button{background:#1a73e8;border:1px solid #1a73e8;color:#fff;border-radius:4px;padding:9px 14px;text-decoration:none;cursor:pointer}.muted{color:#5f6368}.url{color:#006621;word-break:break-all}article{border-bottom:1px solid #eee;padding:12px 0}article h2{font-size:18px;font-weight:400;margin:0}a{color:#1a0dab;text-decoration:none}a:hover{text-decoration:underline}.progress,.verdict{border:1px solid #dadce0;padding:14px;border-radius:8px;background:#f8f9fa}.scores{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0}.scores div{border:1px solid #ddd;border-radius:8px;padding:14px;text-align:center}.scores b{font-size:28px;display:block}table{width:100%;border-collapse:collapse}th,td{text-align:left;border-bottom:1px solid #eee;padding:8px;vertical-align:top}th{background:#f8f9fa}small{color:#5f6368}@media print{header,.button{display:none}.wrap{margin:20px auto}}@media(max-width:760px){.logo{font-size:44px}.wrap,.home{margin-top:34px}.scores{grid-template-columns:1fr}}</style></head><body><header><b>Sitemapper</b><a href="https://github.com/TheArtOfSound/Sitemapper">GitHub</a></header><main class="wrap">${body}</main></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sitemapper</title><style>body{font:14px Arial,Helvetica,sans-serif;margin:0;color:#202124;background:#fff}header{height:44px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;padding:0 18px}.wrap,.home{max-width:1180px;margin:54px auto;padding:0 18px}.logo{text-align:center;font-size:58px;font-weight:400;margin:0 0 24px}.logo small{display:block;font-size:13px;color:#5f6368}.box{height:46px;display:flex;align-items:center;border:1px solid #dfe1e5;border-radius:24px;box-shadow:0 1px 6px rgba(32,33,36,.14);padding:0 12px}.box input{border:0;outline:0;flex:1;font-size:16px}.box button,.button{background:#1a73e8;border:1px solid #1a73e8;color:#fff;border-radius:4px;padding:9px 14px;text-decoration:none;cursor:pointer}.muted{color:#5f6368}.url{color:#006621;word-break:break-all}article{border-bottom:1px solid #eee;padding:12px 0}article h2{font-size:18px;font-weight:400;margin:0}a{color:#1a0dab;text-decoration:none}a:hover{text-decoration:underline}.progress,.verdict{border:1px solid #dadce0;padding:14px;border-radius:8px;background:#f8f9fa}.scores{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0}.scores div{border:1px solid #ddd;border-radius:8px;padding:14px;text-align:center}.scores b{font-size:28px;display:block}table{width:100%;border-collapse:collapse}th,td{text-align:left;border-bottom:1px solid #eee;padding:8px;vertical-align:top}th{background:#f8f9fa}small{color:#5f6368}@media print{header,.button{display:none}.wrap{margin:20px auto}}@media(max-width:760px){.logo{font-size:44px}.wrap,.home{margin-top:34px}.scores{grid-template-columns:1fr}}</style></head><body><header><b>Sitemapper</b><a href="https://github.com/TheArtOfSound/Sitemapper">GitHub</a></header><main class="wrap">${body}</main></body></html>`;
 }
 
 async function readStats(env: Env): Promise<{ runs: number; pages: number }> {
