@@ -13,9 +13,12 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "build:worker": "tsc -p tsconfig.worker.json",
+    "deploy:worker": "npm run build:worker && wrangler deploy",
     "dev": "tsx src/cli.ts",
+    "dev:worker": "npm run build:worker && wrangler dev",
     "test": "vitest run",
-    "check": "tsc -p tsconfig.json --noEmit"
+    "check": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.worker.json --noEmit"
   },
   "keywords": [
     "sitemap",
@@ -34,10 +37,12 @@
     "p-limit": "^6.1.0"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260601.0",
     "@types/node": "^22.10.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "wrangler": "^4.99.0"
   },
   "engines": {
     "node": ">=20"
