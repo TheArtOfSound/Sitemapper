@@ -10,9 +10,24 @@ export async function runAudit(options: SitemapperOptions): Promise<SitemapperRe
   const source = await discoverSitemaps(options.site, options.fetchTimeoutMs);
   const sitemapLoad = await loadSitemapEntries(options.site, source.sitemapUrls, options.fetchTimeoutMs);
   const rootIssues: PageIssue[] = [];
+  const totalSitemapEntries = sitemapLoad.entries.length;
 
   if (!source.discoveredFromRobots) {
     rootIssues.push({ severity: 'notice', code: 'ROBOTS_NO_SITEMAP_REFERENCE', message: 'robots.txt did not expose a Sitemap: entry; tried /sitemap.xml fallback.' });
+  }
+
+  if (totalSitemapEntries === 0 && sitemapLoad.loadedSitemaps.length > 0) {
+    rootIssues.push({ severity: 'error', code: 'SITEMAPS_FOUND_BUT_UNUSABLE', message: 'Sitemap files loaded, but no usable same-host URL entries were extracted.' });
+  }
+
+  if (totalSitemapEntries === 0 && sitemapLoad.loadedSitemaps.length === 0) {
+    rootIssues.push({ severity: 'error', code: 'NO_ACCESSIBLE_SITEMAP', message: 'No accessible XML sitemap could be loaded.' });
+  }
+
+  if (totalSitemapEntries === 1) {
+    rootIssues.push({ severity: 'warning', code: 'SINGLE_URL_SITEMAP', message: 'Only 1 URL was found in the sitemap inventory. This is thin unless the site is intentionally one page.' });
+  } else if (totalSitemapEntries > 1 && totalSitemapEntries < 5) {
+    rootIssues.push({ severity: 'warning', code: 'THIN_SITEMAP', message: `Only ${totalSitemapEntries} URLs were found in the sitemap inventory.` });
   }
 
   for (const failed of sitemapLoad.failedSitemaps) {
@@ -153,11 +168,12 @@ function score(pages: PageRecord[], rootIssues: PageIssue[]): SitemapperScores {
   const notices = [...rootIssues, ...pages.flatMap((page) => page.issues)].filter((issue) => issue.severity === 'notice').length;
   const sections = new Set(pages.map((page) => page.section)).size;
   const missingLastmod = weightedCount(pages, (page) => !page.lastmod);
+  const sitemapDepthPenalty = pages.length === 1 ? 35 : pages.length > 1 && pages.length < 5 ? 20 : pages.length < 10 ? 10 : 0;
 
   return {
-    index: clamp(100 - Math.round((weightedMissingTitle / totalWeight) * 20) - Math.max(0, 10 - sections) * 2),
+    index: clamp(100 - sitemapDepthPenalty - Math.round((weightedMissingTitle / totalWeight) * 20) - Math.max(0, 10 - sections) * 2),
     seo: clamp(100 - errors * 10 - warnings * 1.25 - notices * 0.15 - Math.round((weightedMissingDescription / totalWeight) * 12)),
-    sitemap: clamp(100 - rootIssues.filter((issue) => issue.severity === 'error').length * 15 - Math.round((missingLastmod / totalWeight) * 10))
+    sitemap: clamp(100 - sitemapDepthPenalty - rootIssues.filter((issue) => issue.severity === 'error').length * 15 - Math.round((missingLastmod / totalWeight) * 10))
   };
 }
 
