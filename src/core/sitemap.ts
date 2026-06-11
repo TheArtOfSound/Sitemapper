@@ -25,7 +25,8 @@ function parseSitemapXml(xml: string): ParsedSitemap {
 
   const childSitemaps = sitemapItems
     .map((item: any) => item?.loc)
-    .filter((loc: unknown): loc is string => typeof loc === 'string' && loc.length > 0);
+    .filter((loc: unknown): loc is string => typeof loc === 'string' && loc.length > 0)
+    .filter(isLikelyXmlSitemapUrl);
 
   const urls = urlItems
     .map((item: any) => ({
@@ -40,7 +41,7 @@ function parseSitemapXml(xml: string): ParsedSitemap {
 }
 
 export async function loadSitemapEntries(site: string, sitemapUrls: string[], timeoutMs: number): Promise<{ entries: RawSitemapEntry[]; loadedSitemaps: string[]; failedSitemaps: string[] }> {
-  const queue = [...sitemapUrls];
+  const queue = sitemapUrls.filter(isLikelyXmlSitemapUrl);
   const seenSitemaps = new Set<string>();
   const entries = new Map<string, RawSitemapEntry>();
   const loadedSitemaps: string[] = [];
@@ -59,17 +60,21 @@ export async function loadSitemapEntries(site: string, sitemapUrls: string[], ti
       }
 
       loadedSitemaps.push(sitemapUrl);
-      const parsed = parseSitemapXml(response.text);
-      queue.push(...parsed.childSitemaps.filter((url) => !seenSitemaps.has(url)));
+      try {
+        const parsed = parseSitemapXml(response.text);
+        queue.push(...parsed.childSitemaps.filter((url) => !seenSitemaps.has(url)));
+        for (const entry of parsed.urls) putEntry(entries, site, entry);
+      } catch {
+        // Fall through to raw <loc> recovery below.
+      }
 
-      for (const entry of parsed.urls) {
-        try {
-          const normalized = normalizePageUrl(entry.url);
-          if (!sameHost(normalized, site)) continue;
-          entries.set(normalized, { ...entry, url: normalized });
-        } catch {
-          // Ignore malformed URLs. They are not useful for the public index.
+      for (const loc of extractLocTags(response.text)) {
+        if (!sameHost(loc, site)) continue;
+        if (isLikelyXmlSitemapUrl(loc) && !seenSitemaps.has(loc)) {
+          queue.push(loc);
+          continue;
         }
+        putEntry(entries, site, { url: loc, lastmod: extractLastmodNearLoc(response.text, loc) });
       }
     } catch {
       failedSitemaps.push(sitemapUrl);
@@ -81,4 +86,55 @@ export async function loadSitemapEntries(site: string, sitemapUrls: string[], ti
     loadedSitemaps,
     failedSitemaps
   };
+}
+
+function putEntry(entries: Map<string, RawSitemapEntry>, site: string, entry: RawSitemapEntry): void {
+  try {
+    const normalized = normalizePageUrl(entry.url);
+    if (!sameHost(normalized, site)) return;
+    if (isLikelyXmlSitemapUrl(normalized)) return;
+    entries.set(normalized, { ...entry, url: normalized });
+  } catch {
+    // Ignore malformed URLs. They are not useful for the public index.
+  }
+}
+
+function extractLocTags(xml: string): string[] {
+  const out: string[] = [];
+  const regex = /<loc[^>]*>\s*([^<\s]+)\s*<\/loc>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(xml))) {
+    try {
+      out.push(normalizePageUrl(decodeXml(match[1])));
+    } catch {
+      // Ignore malformed loc values.
+    }
+  }
+  return Array.from(new Set(out));
+}
+
+function extractLastmodNearLoc(xml: string, loc: string): string | undefined {
+  const index = xml.indexOf(loc);
+  if (index < 0) return undefined;
+  const slice = xml.slice(Math.max(0, index - 600), Math.min(xml.length, index + 1200));
+  return /<lastmod[^>]*>\s*([^<\s]+)\s*<\/lastmod>/i.exec(slice)?.[1]?.trim();
+}
+
+function isLikelyXmlSitemapUrl(input: string): boolean {
+  try {
+    const path = new URL(input).pathname.toLowerCase();
+    if (path.endsWith('/llms.txt') || path.endsWith('/robots.txt')) return false;
+    return /sitemap/.test(path) || /\.xml(\.gz)?$/.test(path);
+  } catch {
+    return false;
+  }
+}
+
+function decodeXml(value: string): string {
+  return value
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
 }
