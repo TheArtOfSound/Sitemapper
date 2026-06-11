@@ -8,14 +8,7 @@ export async function discoverSitemaps(site: string, timeoutMs: number): Promise
 
   try {
     const robots = await fetchText(robotsUrl, timeoutMs);
-    const sitemapUrls = robots.ok
-      ? robots.text
-          .split(/\r?\n/)
-          .map((line) => line.trim())
-          .filter((line) => /^sitemap\s*:/i.test(line))
-          .map((line) => line.replace(/^sitemap\s*:/i, '').trim())
-          .filter(Boolean)
-      : [];
+    const sitemapUrls = robots.ok ? extractUsableSitemapUrls(robots.text) : [];
 
     return {
       robotsUrl,
@@ -28,5 +21,25 @@ export async function discoverSitemaps(site: string, timeoutMs: number): Promise
       sitemapUrls: [fallback],
       discoveredFromRobots: false
     };
+  }
+}
+
+function extractUsableSitemapUrls(robotsText: string): string[] {
+  return robotsText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => /^sitemap\s*:/i.test(line))
+    .map((line) => line.replace(/^sitemap\s*:/i, '').trim())
+    .filter(Boolean)
+    .filter(isLikelyXmlSitemapUrl);
+}
+
+function isLikelyXmlSitemapUrl(input: string): boolean {
+  try {
+    const path = new URL(input).pathname.toLowerCase();
+    if (path.endsWith('/llms.txt') || path.endsWith('/robots.txt')) return false;
+    return /sitemap/.test(path) || /\.xml(\.gz)?$/.test(path);
+  } catch {
+    return false;
   }
 }
