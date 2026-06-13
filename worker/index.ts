@@ -25,7 +25,7 @@ export default {
     if (url.pathname === '/api/stats') return json(await readStats(env));
     if (url.pathname === '/api/analyze') return handleAnalyze(url, env);
     if (url.pathname === '/api/report') return handleReport(url, env);
-    return html(homeHtml());
+    return html(homeHtml(await readStats(env)));
   }
 };
 
@@ -392,8 +392,8 @@ function clamp(value: number): number { return Math.max(0, Math.min(100, Math.ro
 function humanize(code: string): string { return code.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()); }
 function escapeHtml(value: unknown): string { return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char] || char)); }
 
-function homeHtml(): string {
-  return shell(`<h1>Sitemapper</h1><p>Turn a public sitemap into a readable site inventory and sampled SEO/crawlability report.</p><form class="box" action="/api/report" method="get"><input name="site" placeholder="https://example.com or https://example.com/sitemap.xml" autocomplete="url" required><button type="submit">Map Site</button></form><p class="muted">Live Worker preview: indexes up to ${MAX_URLS.toLocaleString()} sitemap URLs, deep-checks ${MAX_DEEP.toLocaleString()} pages, and shows the first ${MAX_REPORT_ROWS.toLocaleString()} report rows.</p><p><a href="/api/report?site=https%3A%2F%2Fwesearch.press">Try WeSearch report</a> · <a href="/api/analyze?site=https%3A%2F%2Fwesearch.press">WeSearch JSON</a> · <a href="/api/report?site=https%3A%2F%2Fimagineqira.com">Thin sitemap example</a></p>`);
+function homeHtml(stats: { runs: number; pages: number }): string {
+  return shell(`<h1>Sitemapper</h1><p>Turn a public sitemap into a readable site inventory and sampled SEO/crawlability report.</p><form class="box" action="/api/report" method="get"><input name="site" placeholder="https://example.com or https://example.com/sitemap.xml" autocomplete="url" required><button type="submit">Map Site</button></form><p class="muted">Live Worker preview: indexes up to ${MAX_URLS.toLocaleString()} sitemap URLs, deep-checks ${MAX_DEEP.toLocaleString()} pages, and shows the first ${MAX_REPORT_ROWS.toLocaleString()} report rows.</p><p class="muted">${stats.runs.toLocaleString()} reports run · ${stats.pages.toLocaleString()} URLs indexed so far.</p><p><a href="/api/report?site=https%3A%2F%2Fwesearch.press">Try WeSearch report</a> · <a href="/api/analyze?site=https%3A%2F%2Fwesearch.press">WeSearch JSON</a> · <a href="/api/report?site=https%3A%2F%2Fimagineqira.com">Thin sitemap example</a></p>`);
 }
 
 function reportHtml(result: Result): string {
