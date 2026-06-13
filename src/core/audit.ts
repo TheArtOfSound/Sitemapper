@@ -1,7 +1,7 @@
 import pLimit from 'p-limit';
 import type { PageIssue, PageRecord, RawSitemapEntry, SitemapperOptions, SitemapperResult, SitemapperScores, SitemapperStats } from '../types.js';
 import { canonicalDedupeKey } from '../utils/url.js';
-import { fetchText } from './fetch.js';
+import { fetchWithChain } from './fetch.js';
 import { buildPageFromHtml } from './page.js';
 import { discoverSitemaps } from './discover.js';
 import { loadSitemapEntries } from './sitemap.js';
@@ -97,8 +97,11 @@ async function inspectPages(entries: RawSitemapEntry[], options: SitemapperOptio
   const limit = pLimit(options.concurrency);
   const tasks = entries.map((entry) => limit(async () => {
     try {
-      const response = await fetchText(entry.url, options.fetchTimeoutMs);
-      return buildPageFromHtml(entry, response.status, response.finalUrl, response.text);
+      const response = await fetchWithChain(entry.url, options.fetchTimeoutMs);
+      return buildPageFromHtml(entry, response.status, response.finalUrl, response.text, {
+        chain: response.chain,
+        loop: response.loop
+      });
     } catch {
       return buildPageFromHtml(entry, undefined, undefined, undefined);
     }

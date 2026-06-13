@@ -35,6 +35,12 @@ export interface RawSitemapEntry {
   priority?: string;
 }
 
+export interface RedirectHop {
+  url: string;
+  status: number;
+  location: string;
+}
+
 export interface PageIssue {
   severity: IssueSeverity;
   code: string;
@@ -55,6 +61,8 @@ export interface PageRecord {
   changefreq?: string;
   priority?: string;
   status?: number;
+  redirects?: number;
+  redirectChain?: RedirectHop[];
   ok: boolean;
   issues: PageIssue[];
 }

@@ -1,8 +1,16 @@
 import * as cheerio from 'cheerio';
-import type { PageIssue, PageRecord, RawSitemapEntry } from '../types.js';
+import type { PageIssue, PageRecord, RawSitemapEntry, RedirectHop } from '../types.js';
 import { displayPathFromUrl, normalizePageUrl, pageTypeFromUrl, pathFromUrl, sectionFromUrl } from '../utils/url.js';
 
-export function buildPageFromHtml(entry: RawSitemapEntry, status: number | undefined, finalUrl: string | undefined, html: string | undefined): PageRecord {
+export function buildPageFromHtml(
+  entry: RawSitemapEntry,
+  status: number | undefined,
+  finalUrl: string | undefined,
+  html: string | undefined,
+  redirect?: { chain: RedirectHop[]; loop: boolean }
+): PageRecord {
+  const chain = redirect?.chain ?? [];
+  const loop = redirect?.loop ?? false;
   const issues: PageIssue[] = [];
   const path = pathFromUrl(entry.url);
   const displayPath = displayPathFromUrl(entry.url);
@@ -28,12 +36,17 @@ export function buildPageFromHtml(entry: RawSitemapEntry, status: number | undef
     issues.push({ severity: 'error', code: 'FETCH_FAILED', message: 'Page could not be fetched.' });
   } else if (status >= 400) {
     issues.push({ severity: 'error', code: 'BAD_STATUS', message: `Page returned HTTP ${status}.` });
-  } else if (status >= 300) {
+  } else if (status >= 300 && !loop && chain.length === 0) {
     issues.push({ severity: 'warning', code: 'REDIRECT_STATUS', message: `Page returned redirect status ${status}.` });
   }
 
-  if (finalUrl && safeNormalize(finalUrl) !== safeNormalize(entry.url)) {
-    issues.push({ severity: 'warning', code: 'REDIRECTED_URL', message: `Sitemap URL resolves to ${finalUrl}.` });
+  // v0.3: redirect chain reporting. Exactly one redirect issue per page.
+  if (loop) {
+    issues.push({ severity: 'error', code: 'REDIRECT_LOOP', message: 'Sitemap URL enters a redirect loop.' });
+  } else if (chain.length >= 2) {
+    issues.push({ severity: 'warning', code: 'REDIRECT_CHAIN', message: `Sitemap URL passes through ${chain.length} redirects before resolving.` });
+  } else if (chain.length === 1 || (finalUrl && safeNormalize(finalUrl) !== safeNormalize(entry.url))) {
+    issues.push({ severity: 'warning', code: 'REDIRECTED_URL', message: `Sitemap URL resolves to ${finalUrl ?? chain[chain.length - 1]?.location}.` });
   }
 
   if (!title) {
@@ -76,6 +89,8 @@ export function buildPageFromHtml(entry: RawSitemapEntry, status: number | undef
     changefreq: entry.changefreq,
     priority: entry.priority,
     status,
+    redirects: chain.length || undefined,
+    redirectChain: chain.length > 0 ? chain : undefined,
     ok: issues.every((issue) => issue.severity !== 'error'),
     issues
   };

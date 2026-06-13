@@ -54,7 +54,7 @@ describe('output renderers', () => {
     const csv = renderCsv(result);
     const lines = csv.trim().split('\n');
     expect(lines[0]).toBe(
-      'url,path,display_path,section,page_type,title,description,canonical,final_url,lastmod,status,issue_count,issues'
+      'url,path,display_path,section,page_type,title,description,canonical,final_url,lastmod,status,redirects,issue_count,issues'
     );
     expect(lines).toHaveLength(3);
     expect(lines[1]).toContain('"Title, with comma"');

@@ -14,6 +14,7 @@ export function renderCsv(result: SitemapperResult): string {
     'final_url',
     'lastmod',
     'status',
+    'redirects',
     'issue_count',
     'issues'
   ];
@@ -30,6 +31,7 @@ export function renderCsv(result: SitemapperResult): string {
     page.finalUrl ?? '',
     page.lastmod ?? '',
     page.status ?? '',
+    page.redirects ?? 0,
     page.issues.length,
     page.issues.map((issue) => `${issue.severity}:${issue.code}`).join('|')
   ]);

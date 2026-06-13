@@ -99,4 +99,21 @@ describe('runAudit — full pipeline', () => {
     expect(home?.issues.map((i) => i.code)).not.toContain('ROBOTS_DISALLOWED_IN_SITEMAP');
     expect(result.issues.map((i) => i.code)).toContain('ROBOTS_SITEMAP_CONFLICTS');
   });
+
+  it('reports a redirect chain discovered while inspecting pages (v0.3)', async () => {
+    installFakeFetch({
+      'https://redir.test/robots.txt': { body: 'Sitemap: https://redir.test/sitemap.xml\n' },
+      'https://redir.test/sitemap.xml': {
+        body: `<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://redir.test/old</loc><lastmod>2026-06-01</lastmod></url></urlset>`
+      },
+      'https://redir.test/old': { status: 301, location: 'https://redir.test/mid' },
+      'https://redir.test/mid': { status: 301, location: 'https://redir.test/new' },
+      'https://redir.test/new': { body: pageHtml() }
+    });
+
+    const result = await runAudit(options({ site: 'https://redir.test' }));
+    const page = result.pages[0];
+    expect(page.redirects).toBe(2);
+    expect(page.issues.map((i) => i.code)).toContain('REDIRECT_CHAIN');
+  });
 });

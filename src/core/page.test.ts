@@ -106,6 +106,28 @@ describe('buildPageFromHtml — v0.1 SEO/crawlability checks', () => {
     expect(codes(staticEntry, 200, 'https://example.com/about/', html())).not.toContain('REDIRECTED_URL');
   });
 
+  it('flags a multi-hop redirect chain and records the hop count', () => {
+    const chain = [
+      { url: 'https://example.com/about', status: 301, location: 'https://example.com/about2' },
+      { url: 'https://example.com/about2', status: 301, location: 'https://example.com/about-final' }
+    ];
+    const page = buildPageFromHtml(staticEntry, 200, 'https://example.com/about-final', html(), { chain, loop: false });
+    const found = page.issues.map((i) => i.code);
+    expect(found).toContain('REDIRECT_CHAIN');
+    expect(found).not.toContain('REDIRECTED_URL');
+    expect(page.redirects).toBe(2);
+  });
+
+  it('flags a redirect loop as an error', () => {
+    const chain = [
+      { url: 'https://example.com/a', status: 301, location: 'https://example.com/b' },
+      { url: 'https://example.com/b', status: 301, location: 'https://example.com/a' }
+    ];
+    const page = buildPageFromHtml(staticEntry, 301, 'https://example.com/a', '', { chain, loop: true });
+    expect(page.issues.map((i) => i.code)).toContain('REDIRECT_LOOP');
+    expect(page.ok).toBe(false);
+  });
+
   it('flags a noindex page that is listed in the sitemap as an error', () => {
     const page = buildPageFromHtml(staticEntry, 200, staticEntry.url, html({ noindex: true }));
     expect(page.issues.map((i) => i.code)).toContain('NOINDEX_IN_SITEMAP');

@@ -5,7 +5,7 @@ type Env = { SITEMAPPER_STATS?: KVNamespace };
 type Severity = 'error' | 'warning' | 'notice';
 type Issue = { severity: Severity; code: string; message: string };
 type Entry = { url: string; lastmod?: string };
-type Page = Entry & { path: string; type: string; section: string; deepChecked: boolean; title?: string; description?: string; canonical?: string; status?: number; issues: Issue[] };
+type Page = Entry & { path: string; type: string; section: string; deepChecked: boolean; title?: string; description?: string; canonical?: string; status?: number; redirects?: number; issues: Issue[] };
 type Source = { robotsUrl: string; sitemapUrls: string[]; discoveredFromRobots: boolean; inputMode: 'site' | 'sitemap'; testedUrls: string[]; failures: string[]; compatibility: string; discoveredUrlCount: number; deepCheckedCount: number };
 type Candidate = Source & { site: string; rules: RobotsRules };
 type Result = { site: string; generatedAt: string; source: Source; scores: { index: number; seo: number; sitemap: number }; stats: { pages: number; sections: number; errors: number; warnings: number; notices: number }; pages: Page[]; issues: Issue[] };
@@ -16,6 +16,7 @@ const MAX_DEEP = 40;
 const MAX_REPORT_ROWS = 300;
 const FETCH_BATCH = 6;
 const TIMEOUT_MS = 6500;
+const MAX_REDIRECTS = 8;
 const UA = 'SitemapperWorker/1.0 (+https://github.com/TheArtOfSound/Sitemapper)';
 const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '', trimValues: true });
 
@@ -225,8 +226,8 @@ async function inspectPages(entries: Entry[]): Promise<Page[]> {
     const batch = entries.slice(i, i + FETCH_BATCH);
     pages.push(...await Promise.all(batch.map(async (entry) => {
       try {
-        const response = await fetchText(entry.url);
-        return deepPage(entry, response.status, response.url, response.text, response.contentType);
+        const response = await fetchChain(entry.url);
+        return deepPage(entry, response.status, response.finalUrl, response.text, response.contentType, { hops: response.hops, loop: response.loop });
       } catch (error) {
         const page = deepPage(entry);
         page.issues.push(note('FETCH_DETAIL', messageOf(error)));
@@ -237,10 +238,13 @@ async function inspectPages(entries: Entry[]): Promise<Page[]> {
   return pages;
 }
 
-function deepPage(entry: Entry, status?: number, finalUrl?: string, body?: string, contentType?: string): Page {
+function deepPage(entry: Entry, status?: number, finalUrl?: string, body?: string, contentType?: string, redirect?: { hops: number; loop: boolean }): Page {
   const page = basePage(entry, true);
   const generated = ['archive', 'cluster', 'category_page', 'canvas', 'story', 'generated'].includes(page.type);
+  const hops = redirect?.hops ?? 0;
+  const loop = redirect?.loop ?? false;
   page.status = status;
+  if (hops > 0) page.redirects = hops;
   page.title = body ? clean(/<title[^>]*>([\s\S]*?)<\/title>/i.exec(body)?.[1]) : undefined;
   page.description = body ? clean(meta(body, 'description')) : undefined;
   page.canonical = body ? clean(canonical(body)) : undefined;
@@ -248,8 +252,10 @@ function deepPage(entry: Entry, status?: number, finalUrl?: string, body?: strin
 
   if (!status) page.issues.push(errorIssue('FETCH_FAILED', 'Page could not be fetched.'));
   else if (status >= 400) page.issues.push(errorIssue('BAD_STATUS', `Page returned HTTP ${status}.`));
-  else if (status >= 300) page.issues.push(warning('REDIRECT_STATUS', `Page returned HTTP ${status}.`));
-  if (finalUrl && normalizeUrl(finalUrl) !== normalizeUrl(entry.url)) page.issues.push(warning('REDIRECTED_URL', `Sitemap URL resolves to ${finalUrl}.`));
+  else if (status >= 300 && !loop && hops === 0) page.issues.push(warning('REDIRECT_STATUS', `Page returned HTTP ${status}.`));
+  if (loop) page.issues.push(errorIssue('REDIRECT_LOOP', 'Sitemap URL enters a redirect loop.'));
+  else if (hops >= 2) page.issues.push(warning('REDIRECT_CHAIN', `Sitemap URL passes through ${hops} redirects before resolving.`));
+  else if (hops === 1 || (finalUrl && normalizeUrl(finalUrl) !== normalizeUrl(entry.url))) page.issues.push(warning('REDIRECTED_URL', `Sitemap URL resolves to ${finalUrl}.`));
   if (contentType && !/html|xhtml|text\//i.test(contentType)) page.issues.push(note('NON_HTML_RESPONSE', `Response content-type was ${contentType}.`));
   if (looksBlocked(status || 0, body || '')) page.issues.push(warning('BOT_PROTECTION_DETECTED', 'Page response looks like bot protection or an access challenge.'));
   if (!page.title) page.issues.push({ severity: generated ? 'notice' : 'warning', code: 'MISSING_TITLE', message: 'Page is missing a title tag.' });
@@ -325,6 +331,40 @@ async function fetchText(url: string): Promise<{ status: number; url: string; te
   try {
     const response = await fetch(url, { redirect: 'follow', signal: controller.signal, headers: { 'user-agent': UA, accept: 'text/html,application/xhtml+xml,application/xml,text/xml;q=0.9,*/*;q=0.6' } });
     return { status: response.status, url: response.url || url, text: await response.text(), contentType: response.headers.get('content-type') || '' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// v0.3: follow redirects one hop at a time so the chain, loops, and final
+// destination are observable for deep-checked pages.
+async function fetchChain(url: string): Promise<{ status: number; finalUrl: string; text: string; contentType: string; hops: number; loop: boolean }> {
+  const visited = new Set<string>();
+  let current = url;
+  let hops = 0;
+  for (let i = 0; i <= MAX_REDIRECTS; i++) {
+    const step = await fetchManual(current);
+    const isRedirect = step.status >= 300 && step.status < 400 && Boolean(step.location);
+    if (!isRedirect) return { status: step.status, finalUrl: step.finalUrl, text: step.text, contentType: step.contentType, hops, loop: false };
+    let next: string;
+    try { next = new URL(step.location, current).toString(); } catch { next = step.location; }
+    hops += 1;
+    if (visited.has(next)) return { status: step.status, finalUrl: next, text: '', contentType: '', hops, loop: true };
+    visited.add(current);
+    current = next;
+  }
+  return { status: 310, finalUrl: current, text: '', contentType: '', hops, loop: false };
+}
+
+async function fetchManual(url: string): Promise<{ status: number; location: string; finalUrl: string; text: string; contentType: string }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const response = await fetch(url, { redirect: 'manual', signal: controller.signal, headers: { 'user-agent': UA, accept: 'text/html,application/xhtml+xml,application/xml,text/xml;q=0.9,*/*;q=0.6' } });
+    const location = response.headers.get('location') || '';
+    const isRedirect = response.status >= 300 && response.status < 400 && Boolean(location);
+    const text = isRedirect ? '' : await response.text();
+    return { status: response.status, location, finalUrl: response.url || url, text, contentType: response.headers.get('content-type') || '' };
   } finally {
     clearTimeout(timer);
   }

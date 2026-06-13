@@ -10,6 +10,8 @@ export interface FakeRoute {
   body?: string;
   finalUrl?: string;
   throws?: boolean;
+  location?: string;
+  contentType?: string;
 }
 
 export function installFakeFetch(routes: Record<string, FakeRoute>): void {
@@ -24,7 +26,14 @@ export function installFakeFetch(routes: Record<string, FakeRoute>): void {
       status,
       ok: status >= 200 && status < 300,
       text: async () => resolved.body ?? '',
-      headers: { get: () => 'text/html; charset=utf-8' }
+      headers: {
+        get: (name: string) => {
+          const key = name.toLowerCase();
+          if (key === 'location') return resolved.location ?? null;
+          if (key === 'content-type') return resolved.contentType ?? 'text/html; charset=utf-8';
+          return null;
+        }
+      }
     };
     return fake as unknown as Response;
   };
