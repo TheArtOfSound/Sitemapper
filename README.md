@@ -2,6 +2,8 @@
 
 > Make your sitemap useful to humans, not just crawlers.
 
+**Live app: [sitemapper.oortstack.com](https://sitemapper.oortstack.com)** — map any public site straight from the browser. Also mirrored at [sitemapper.bryanleonard237.workers.dev](https://sitemapper.bryanleonard237.workers.dev).
+
 Sitemapper turns public `robots.txt` and sitemap files into a readable site inventory, searchable index, and practical SEO/crawlability report.
 
 It is built for indie builders, documentation sites, content networks, local businesses, agencies, and multi-domain operators that need to answer a simple question quickly:

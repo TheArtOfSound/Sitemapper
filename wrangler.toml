@@ -3,5 +3,15 @@ main = "worker-dist/worker/index.js"
 compatibility_date = "2026-06-09"
 workers_dev = true
 
+# Public custom domain. Cloudflare auto-provisions the DNS record and TLS cert.
+[[routes]]
+pattern = "sitemapper.oortstack.com"
+custom_domain = true
+
+# Persistent run/page counters surfaced at /api/stats.
+[[kv_namespaces]]
+binding = "SITEMAPPER_STATS"
+id = "5223923adf504df69cada831e14d2b9e"
+
 [observability]
 enabled = true
