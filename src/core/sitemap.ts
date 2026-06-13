@@ -93,6 +93,10 @@ function putEntry(entries: Map<string, RawSitemapEntry>, site: string, entry: Ra
     const normalized = normalizePageUrl(entry.url);
     if (!sameHost(normalized, site)) return;
     if (isLikelyXmlSitemapUrl(normalized)) return;
+    // First-wins: the structured XML parse is authoritative. The raw <loc> recovery
+    // pass must not overwrite it — otherwise proximity-based lastmod recovery can
+    // bleed a neighbour's <lastmod> onto an entry that legitimately has none.
+    if (entries.has(normalized)) return;
     entries.set(normalized, { ...entry, url: normalized });
   } catch {
     // Ignore malformed URLs. They are not useful for the public index.

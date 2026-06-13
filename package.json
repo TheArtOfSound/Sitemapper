@@ -12,12 +12,13 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
     "build:worker": "tsc -p tsconfig.worker.json",
     "deploy:worker": "npm run build:worker && wrangler deploy",
     "dev": "tsx src/cli.ts",
     "dev:worker": "npm run build:worker && wrangler dev",
     "test": "vitest run",
+    "test:live": "SITEMAPPER_LIVE=1 vitest run src/test/live.test.ts",
     "check": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.worker.json --noEmit"
   },
   "keywords": [

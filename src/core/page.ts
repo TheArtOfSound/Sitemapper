@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 import type { PageIssue, PageRecord, RawSitemapEntry } from '../types.js';
-import { displayPathFromUrl, pageTypeFromUrl, pathFromUrl, sectionFromUrl } from '../utils/url.js';
+import { displayPathFromUrl, normalizePageUrl, pageTypeFromUrl, pathFromUrl, sectionFromUrl } from '../utils/url.js';
 
 export function buildPageFromHtml(entry: RawSitemapEntry, status: number | undefined, finalUrl: string | undefined, html: string | undefined): PageRecord {
   const issues: PageIssue[] = [];
@@ -32,7 +32,7 @@ export function buildPageFromHtml(entry: RawSitemapEntry, status: number | undef
     issues.push({ severity: 'warning', code: 'REDIRECT_STATUS', message: `Page returned redirect status ${status}.` });
   }
 
-  if (finalUrl && finalUrl !== entry.url) {
+  if (finalUrl && safeNormalize(finalUrl) !== safeNormalize(entry.url)) {
     issues.push({ severity: 'warning', code: 'REDIRECTED_URL', message: `Sitemap URL resolves to ${finalUrl}.` });
   }
 
@@ -85,4 +85,14 @@ function cleanText(value: string | undefined): string | undefined {
   if (!value) return undefined;
   const cleaned = value.replace(/\s+/g, ' ').trim();
   return cleaned.length > 0 ? cleaned : undefined;
+}
+
+// Compare URLs by their normalized form so that a trailing slash, default port,
+// or host casing difference is not mistaken for a real redirect.
+function safeNormalize(url: string): string {
+  try {
+    return normalizePageUrl(url);
+  } catch {
+    return url;
+  }
 }
