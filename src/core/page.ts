@@ -65,6 +65,19 @@ export function buildPageFromHtml(
 
   if (!canonical) {
     issues.push({ severity: 'notice', code: 'MISSING_CANONICAL', message: 'Page is missing a canonical link.' });
+  } else {
+    // v0.4: validate the canonical target. A canonical matching either the
+    // sitemap URL or the post-redirect URL is healthy (self-referencing).
+    const resolved = resolveUrl(canonical, entry.url);
+    if (resolved) {
+      const selfUrls = new Set([safeNormalize(entry.url)]);
+      if (finalUrl) selfUrls.add(safeNormalize(finalUrl));
+      if (!safeSameHost(resolved, entry.url)) {
+        issues.push({ severity: 'warning', code: 'CANONICAL_CROSS_HOST', message: `Canonical points to another host: ${resolved}.` });
+      } else if (!selfUrls.has(safeNormalize(resolved))) {
+        issues.push({ severity: 'notice', code: 'CANONICAL_MISMATCH', message: `Canonical points to a different URL: ${resolved}.` });
+      }
+    }
   }
 
   if (noindex) {
@@ -109,5 +122,21 @@ function safeNormalize(url: string): string {
     return normalizePageUrl(url);
   } catch {
     return url;
+  }
+}
+
+function resolveUrl(href: string, base: string): string | undefined {
+  try {
+    return new URL(href, base).toString();
+  } catch {
+    return undefined;
+  }
+}
+
+function safeSameHost(a: string, b: string): boolean {
+  try {
+    return new URL(a).hostname === new URL(b).hostname;
+  } catch {
+    return false;
   }
 }

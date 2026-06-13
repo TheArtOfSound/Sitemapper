@@ -82,6 +82,25 @@ describe('buildPageFromHtml — v0.1 SEO/crawlability checks', () => {
     expect(severityOf(staticEntry, 200, staticEntry.url, html({ canonical: null }), 'MISSING_CANONICAL')).toBe('notice');
   });
 
+  it('flags a canonical that points to another host (v0.4)', () => {
+    expect(codes(staticEntry, 200, staticEntry.url, html({ canonical: 'https://elsewhere.com/about' }))).toContain('CANONICAL_CROSS_HOST');
+  });
+
+  it('flags a canonical that points to a different same-host URL (v0.4)', () => {
+    expect(codes(staticEntry, 200, staticEntry.url, html({ canonical: 'https://example.com/other' }))).toContain('CANONICAL_MISMATCH');
+  });
+
+  it('treats a self-referencing canonical as healthy', () => {
+    const found = codes(staticEntry, 200, staticEntry.url, html({ canonical: 'https://example.com/about' }));
+    expect(found).not.toContain('CANONICAL_MISMATCH');
+    expect(found).not.toContain('CANONICAL_CROSS_HOST');
+  });
+
+  it('treats a canonical matching the post-redirect URL as self', () => {
+    const found = codes(staticEntry, 200, 'https://example.com/about-final', html({ canonical: 'https://example.com/about-final' }));
+    expect(found).not.toContain('CANONICAL_MISMATCH');
+  });
+
   it('flags a bad HTTP status as an error', () => {
     const page = buildPageFromHtml(staticEntry, 404, staticEntry.url, 'not found');
     expect(page.issues.map((i) => i.code)).toContain('BAD_STATUS');

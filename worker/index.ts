@@ -264,7 +264,17 @@ function deepPage(entry: Entry, status?: number, finalUrl?: string, body?: strin
   if (!page.description) page.issues.push({ severity: generated ? 'notice' : 'warning', code: 'MISSING_META_DESCRIPTION', message: 'Page is missing a meta description.' });
   else if (page.description.length > 180) page.issues.push({ severity: generated ? 'notice' : 'warning', code: 'LONG_META_DESCRIPTION', message: 'Meta description may be too long.' });
   else if (page.description.length < 50) page.issues.push(note('SHORT_META_DESCRIPTION', 'Meta description is short.'));
-  if (!page.canonical) page.issues.push(note('MISSING_CANONICAL', 'Page is missing a canonical link.'));
+  if (!page.canonical) {
+    page.issues.push(note('MISSING_CANONICAL', 'Page is missing a canonical link.'));
+  } else {
+    const resolvedCanonical = resolveCanonical(page.canonical, entry.url);
+    if (resolvedCanonical) {
+      const selfUrls = new Set([safeNorm(entry.url)]);
+      if (finalUrl) selfUrls.add(safeNorm(finalUrl));
+      if (!sameHost(resolvedCanonical, entry.url)) page.issues.push(warning('CANONICAL_CROSS_HOST', `Canonical points to another host: ${resolvedCanonical}.`));
+      else if (!selfUrls.has(safeNorm(resolvedCanonical))) page.issues.push(note('CANONICAL_MISMATCH', `Canonical points to a different URL: ${resolvedCanonical}.`));
+    }
+  }
   if (robots?.includes('noindex')) page.issues.push(errorIssue('NOINDEX_IN_SITEMAP', 'Page appears in sitemap but has noindex.'));
   if (!entry.lastmod) page.issues.push({ severity: generated ? 'notice' : 'warning', code: 'MISSING_LASTMOD', message: 'Sitemap entry is missing lastmod.' });
   return page;
@@ -428,6 +438,8 @@ function isPageUrl(input: string): boolean {
 }
 
 function sameHost(a: string, b: string): boolean { try { return new URL(a).hostname === new URL(b).hostname; } catch { return false; } }
+function resolveCanonical(href: string, base: string): string | undefined { try { return new URL(href, base).toString(); } catch { return undefined; } }
+function safeNorm(url: string): string { try { return normalizeUrl(url); } catch { return url; } }
 function normalizeUrl(input: string): string { const url = new URL(input); url.hash = ''; url.hostname = url.hostname.toLowerCase(); if (url.pathname !== '/') url.pathname = url.pathname.replace(/\/+$/, ''); return url.toString(); }
 function addEntry(entries: Map<string, Entry>, url: string, lastmod?: string): void { try { const key = normalizeUrl(url); if (!isSitemapUrl(key) && !entries.has(key)) entries.set(key, { url: key, lastmod }); } catch {} }
 function asArray<T>(value: T | T[] | undefined): T[] { return value ? Array.isArray(value) ? value : [value] : []; }
