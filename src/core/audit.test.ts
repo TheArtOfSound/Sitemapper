@@ -76,4 +76,27 @@ describe('runAudit — full pipeline', () => {
     expect(rootCodes).toContain('ROBOTS_NO_SITEMAP_REFERENCE');
     expect(rootCodes).toContain('SINGLE_URL_SITEMAP');
   });
+
+  it('flags sitemap URLs that robots.txt disallows (v0.2 conflict detection)', async () => {
+    installFakeFetch({
+      'https://conflict.test/robots.txt': {
+        body: 'User-agent: *\nDisallow: /secret\nSitemap: https://conflict.test/sitemap.xml\n'
+      },
+      'https://conflict.test/sitemap.xml': {
+        body: `<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url><loc>https://conflict.test/</loc><lastmod>2026-06-01</lastmod></url>
+          <url><loc>https://conflict.test/secret/page</loc><lastmod>2026-06-01</lastmod></url>
+        </urlset>`
+      },
+      'https://conflict.test/': { body: pageHtml() },
+      'https://conflict.test/secret/page': { body: pageHtml() }
+    });
+
+    const result = await runAudit(options({ site: 'https://conflict.test' }));
+    const blocked = result.pages.find((p) => p.url === 'https://conflict.test/secret/page');
+    const home = result.pages.find((p) => p.url === 'https://conflict.test/');
+    expect(blocked?.issues.map((i) => i.code)).toContain('ROBOTS_DISALLOWED_IN_SITEMAP');
+    expect(home?.issues.map((i) => i.code)).not.toContain('ROBOTS_DISALLOWED_IN_SITEMAP');
+    expect(result.issues.map((i) => i.code)).toContain('ROBOTS_SITEMAP_CONFLICTS');
+  });
 });

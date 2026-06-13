@@ -5,9 +5,10 @@ import { fetchText } from './fetch.js';
 import { buildPageFromHtml } from './page.js';
 import { discoverSitemaps } from './discover.js';
 import { loadSitemapEntries } from './sitemap.js';
+import { isPathAllowed, requestPath, type RobotsRules } from './robots.js';
 
 export async function runAudit(options: SitemapperOptions): Promise<SitemapperResult> {
-  const source = await discoverSitemaps(options.site, options.fetchTimeoutMs);
+  const { rules, ...source } = await discoverSitemaps(options.site, options.fetchTimeoutMs);
   const sitemapLoad = await loadSitemapEntries(options.site, source.sitemapUrls, options.fetchTimeoutMs);
   const rootIssues: PageIssue[] = [];
   const totalSitemapEntries = sitemapLoad.entries.length;
@@ -46,6 +47,7 @@ export async function runAudit(options: SitemapperOptions): Promise<SitemapperRe
     ...page,
     issues: [...page.issues, ...(duplicateIssues.get(page.url) ?? [])]
   }));
+  const finalPages = applyRobotsConflicts(pagesWithDuplicates, rules, rootIssues);
 
   return {
     site: options.site,
@@ -54,11 +56,41 @@ export async function runAudit(options: SitemapperOptions): Promise<SitemapperRe
       ...source,
       sitemapUrls: sitemapLoad.loadedSitemaps.length > 0 ? sitemapLoad.loadedSitemaps : source.sitemapUrls
     },
-    scores: score(pagesWithDuplicates, rootIssues),
-    stats: stats(pagesWithDuplicates, rootIssues),
-    pages: pagesWithDuplicates,
+    scores: score(finalPages, rootIssues),
+    stats: stats(finalPages, rootIssues),
+    pages: finalPages,
     issues: rootIssues
   };
+}
+
+// v0.2: flag sitemap URLs that robots.txt disallows (the "submitted URL blocked
+// by robots.txt" conflict). Only runs when robots.txt actually defined rules.
+function applyRobotsConflicts(pages: PageRecord[], rules: RobotsRules, rootIssues: PageIssue[]): PageRecord[] {
+  if (!rules.hasGroups) return pages;
+  let blocked = 0;
+  const out = pages.map((page) => {
+    if (isPathAllowed(rules, requestPath(page.url))) return page;
+    blocked += 1;
+    return {
+      ...page,
+      issues: [
+        ...page.issues,
+        {
+          severity: 'warning' as const,
+          code: 'ROBOTS_DISALLOWED_IN_SITEMAP',
+          message: 'URL is listed in the sitemap but blocked by robots.txt.'
+        }
+      ]
+    };
+  });
+  if (blocked > 0) {
+    rootIssues.push({
+      severity: 'warning',
+      code: 'ROBOTS_SITEMAP_CONFLICTS',
+      message: `${blocked} sitemap URL(s) are advertised in the sitemap but disallowed by robots.txt.`
+    });
+  }
+  return out;
 }
 
 async function inspectPages(entries: RawSitemapEntry[], options: SitemapperOptions): Promise<PageRecord[]> {

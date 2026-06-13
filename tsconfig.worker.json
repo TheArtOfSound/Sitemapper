@@ -9,5 +9,5 @@
     "moduleResolution": "Bundler",
     "noEmitOnError": true
   },
-  "include": ["worker/**/*.ts", "src/types.ts", "src/utils/url.ts"]
+  "include": ["worker/**/*.ts", "src/types.ts", "src/utils/url.ts", "src/core/robots.ts"]
 }

@@ -1,25 +1,33 @@
 import type { SitemapSource } from '../types.js';
 import { fetchText } from './fetch.js';
+import { parseRobots, type RobotsRules } from './robots.js';
 
-export async function discoverSitemaps(site: string, timeoutMs: number): Promise<SitemapSource> {
+export interface DiscoveryResult extends SitemapSource {
+  rules: RobotsRules;
+}
+
+export async function discoverSitemaps(site: string, timeoutMs: number): Promise<DiscoveryResult> {
   const base = new URL(site);
   const robotsUrl = `${base.origin}/robots.txt`;
   const fallback = `${base.origin}/sitemap.xml`;
 
   try {
     const robots = await fetchText(robotsUrl, timeoutMs);
+    const rules = parseRobots(robots.ok ? robots.text : '');
     const sitemapUrls = robots.ok ? extractUsableSitemapUrls(robots.text) : [];
 
     return {
       robotsUrl,
       sitemapUrls: sitemapUrls.length > 0 ? sitemapUrls : [fallback],
-      discoveredFromRobots: sitemapUrls.length > 0
+      discoveredFromRobots: sitemapUrls.length > 0,
+      rules
     };
   } catch {
     return {
       robotsUrl,
       sitemapUrls: [fallback],
-      discoveredFromRobots: false
+      discoveredFromRobots: false,
+      rules: parseRobots('')
     };
   }
 }

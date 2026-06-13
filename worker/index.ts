@@ -1,4 +1,5 @@
 import { XMLParser } from 'fast-xml-parser';
+import { parseRobots, isPathAllowed, requestPath, type RobotsRules } from '../src/core/robots.js';
 
 type Env = { SITEMAPPER_STATS?: KVNamespace };
 type Severity = 'error' | 'warning' | 'notice';
@@ -6,7 +7,7 @@ type Issue = { severity: Severity; code: string; message: string };
 type Entry = { url: string; lastmod?: string };
 type Page = Entry & { path: string; type: string; section: string; deepChecked: boolean; title?: string; description?: string; canonical?: string; status?: number; issues: Issue[] };
 type Source = { robotsUrl: string; sitemapUrls: string[]; discoveredFromRobots: boolean; inputMode: 'site' | 'sitemap'; testedUrls: string[]; failures: string[]; compatibility: string; discoveredUrlCount: number; deepCheckedCount: number };
-type Candidate = Source & { site: string };
+type Candidate = Source & { site: string; rules: RobotsRules };
 type Result = { site: string; generatedAt: string; source: Source; scores: { index: number; seo: number; sitemap: number }; stats: { pages: number; sections: number; errors: number; warnings: number; notices: number }; pages: Page[]; issues: Issue[] };
 
 const MAX_SITEMAPS = 35;
@@ -76,12 +77,14 @@ async function analyze(input: string): Promise<Result> {
   const deepPages = await inspectPages(bestLoad.entries.slice(0, MAX_DEEP));
   addDuplicateMetadataIssues(deepPages);
   const pages = [...deepPages, ...bestLoad.entries.slice(MAX_DEEP).map(indexOnlyPage)];
+  applyRobotsConflicts(pages, bestSource.rules, issues);
   const allIssues = [...issues, ...pages.flatMap((page) => page.issues)];
   const stats = summarize(pages, allIssues);
   bestSource.discoveredUrlCount = bestLoad.entries.length;
   bestSource.deepCheckedCount = deepPages.length;
   bestSource.compatibility = compatibilityVerdict(bestLoad.entries.length, bestLoad.loaded.length, bestLoad.failed.length, deepPages.filter((page) => page.issues.some((issue) => issue.severity === 'error')).length);
-  const { site, ...safeSource } = bestSource;
+  const { site, rules: _rules, ...safeSource } = bestSource;
+  void _rules;
 
   return {
     site,
@@ -112,7 +115,7 @@ function rootIssues(source: Candidate, loaded: Awaited<ReturnType<typeof loadSit
 async function discoverCandidates(target: { input: string; site: string; mode: 'site' | 'sitemap' }): Promise<Candidate[]> {
   if (target.mode === 'sitemap') {
     const origin = new URL(target.input).origin;
-    return [makeCandidate(origin, `${origin}/robots.txt`, [target.input], false, 'sitemap', ['Direct sitemap input.'])];
+    return [makeCandidate(origin, `${origin}/robots.txt`, [target.input], false, 'sitemap', ['Direct sitemap input.'], parseRobots(''))];
   }
 
   const out: Candidate[] = [];
@@ -120,26 +123,39 @@ async function discoverCandidates(target: { input: string; site: string; mode: '
     const origin = new URL(site).origin;
     const robotsUrl = `${origin}/robots.txt`;
     const failures: string[] = [];
+    let rules = parseRobots('');
     try {
       const robots = await fetchText(robotsUrl);
+      rules = parseRobots(robots.text);
       const extracted = sitemapsFromRobots(robots.text);
       for (const ignored of extracted.ignored.slice(0, 10)) failures.push(`Ignored non-XML Sitemap directive: ${ignored}`);
       const usable = extracted.urls.filter((item) => sameHost(item, site));
       if (usable.length) {
-        out.push(makeCandidate(site, robotsUrl, usable, true, 'site', failures));
+        out.push(makeCandidate(site, robotsUrl, usable, true, 'site', failures, rules));
         continue;
       }
       failures.push(`${robotsUrl} loaded but did not expose usable same-host XML Sitemap directives.`);
     } catch (error) {
       failures.push(`${robotsUrl} failed: ${messageOf(error)}`);
     }
-    out.push(makeCandidate(site, robotsUrl, commonSitemaps(origin), false, 'site', failures));
+    out.push(makeCandidate(site, robotsUrl, commonSitemaps(origin), false, 'site', failures, rules));
   }
   return out;
 }
 
-function makeCandidate(site: string, robotsUrl: string, sitemapUrls: string[], discoveredFromRobots: boolean, inputMode: 'site' | 'sitemap', failures: string[]): Candidate {
-  return { site, robotsUrl, sitemapUrls, discoveredFromRobots, inputMode, testedUrls: [robotsUrl], failures, compatibility: 'Not run yet.', discoveredUrlCount: 0, deepCheckedCount: 0 };
+function makeCandidate(site: string, robotsUrl: string, sitemapUrls: string[], discoveredFromRobots: boolean, inputMode: 'site' | 'sitemap', failures: string[], rules: RobotsRules): Candidate {
+  return { site, robotsUrl, sitemapUrls, discoveredFromRobots, inputMode, testedUrls: [robotsUrl], failures, compatibility: 'Not run yet.', discoveredUrlCount: 0, deepCheckedCount: 0, rules };
+}
+
+function applyRobotsConflicts(pages: Page[], rules: RobotsRules, issues: Issue[]): void {
+  if (!rules.hasGroups) return;
+  let blocked = 0;
+  for (const page of pages) {
+    if (isPathAllowed(rules, requestPath(page.url))) continue;
+    blocked += 1;
+    page.issues.push(warning('ROBOTS_DISALLOWED_IN_SITEMAP', 'URL is listed in the sitemap but blocked by robots.txt.'));
+  }
+  if (blocked > 0) issues.push(warning('ROBOTS_SITEMAP_CONFLICTS', `${blocked} sitemap URL(s) are advertised in the sitemap but disallowed by robots.txt.`));
 }
 
 async function loadSitemaps(site: string, startUrls: string[]): Promise<{ entries: Entry[]; loaded: string[]; failed: string[]; failures: string[] }> {
