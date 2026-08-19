@@ -1,0 +1,19 @@
+1
+00:00:00,000 --> 00:00:03,000
+Open Sitemapper. No account required.
+
+2
+00:00:03,000 --> 00:00:07,400
+Paste a public site. Type the URL.
+
+3
+00:00:07,400 --> 00:00:12,200
+Real scan — 19 URLs, live evidence.
+
+4
+00:00:12,200 --> 00:00:16,000
+Monitor this site after the survey.
+
+5
+00:00:16,000 --> 00:00:20,000
+Then price it. Then sign in.

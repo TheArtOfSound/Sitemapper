@@ -106,15 +106,10 @@ a:hover{text-decoration:underline;text-underline-offset:3px}
   width:36px;height:36px;border:1px solid var(--line);display:block;object-fit:cover;
 }
 .hero-stage{
-  position:relative;margin:0 0 28px;height:min(42vw, 380px);min-height:220px;
+  position:relative;margin:0 0 28px;height:min(52vw, 460px);min-height:260px;
   overflow:hidden;border:1px solid var(--line);background:#0c0908;
 }
 .hero-stage video,.hero-stage img{width:100%;height:100%;object-fit:cover;display:block}
-.hero-stage::after{
-  content:"";position:absolute;inset:0;
-  background:linear-gradient(180deg, rgba(20,15,12,.12), rgba(20,15,12,.55));
-  pointer-events:none;
-}
 .nav{display:flex;gap:14px;flex-wrap:wrap;font:12px/1 var(--mono);text-transform:uppercase;letter-spacing:.06em}
 .nav a{color:var(--mute)}
 .nav a:hover{color:var(--accent)}
@@ -447,8 +442,8 @@ function stepRail(active: 1 | 2 | 3): string {
 
 export function homeHtml(stats: { runs: number; pages: number }): string {
   const body = `
-<div class="hero-stage" aria-hidden="true">
-  <video autoplay muted loop playsinline poster="/brand/hero.jpg">
+<div class="hero-stage">
+  <video autoplay muted loop playsinline controls poster="/brand/hero.jpg">
     <source src="/brand/hero.mp4" type="video/mp4">
   </video>
 </div>
