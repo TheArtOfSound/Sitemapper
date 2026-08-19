@@ -67,15 +67,15 @@ export function humanize(code: string): string {
 export function css(): string {
   return `
 :root{
-  --bg:#0b1220;
-  --panel:#111b2e;
-  --line:#2a3f5c;
-  --text:#e8eef6;
-  --mute:#8aa0b8;
-  --accent:#5ec8ff;
-  --ok:#3dcaa0;
-  --warn:#f0b429;
-  --bad:#ff6b5a;
+  --bg:#140f0c;
+  --panel:#1c1612;
+  --line:#4a3224;
+  --text:#f4ece4;
+  --mute:#b59a84;
+  --accent:#d08a4a;
+  --ok:#7aa68a;
+  --warn:#e0a045;
+  --bad:#c45c48;
   --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
   --sans:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
   --serif:"Source Serif 4",Georgia,serif;
@@ -83,7 +83,8 @@ export function css(): string {
 *{box-sizing:border-box}
 body{
   margin:0;min-height:100vh;color:var(--text);
-  font:16px/1.5 var(--sans);background:var(--bg);
+  font:16px/1.5 var(--sans);
+  background:radial-gradient(1100px 420px at 8% -8%, rgba(208,138,74,.18), transparent 55%), #140f0c;
 }
 a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline;text-underline-offset:3px}
@@ -102,8 +103,17 @@ a:hover{text-decoration:underline;text-underline-offset:3px}
 .brand{display:flex;align-items:center;gap:10px;color:inherit;text-decoration:none;font-weight:600}
 .brand:hover{text-decoration:none}
 .mark{
-  width:32px;height:32px;border:1px solid var(--accent);display:grid;place-items:center;
-  font:700 11px/1 var(--mono);color:var(--accent);
+  width:36px;height:36px;border:1px solid var(--line);display:block;object-fit:cover;
+}
+.hero-stage{
+  position:relative;margin:0 0 28px;height:min(42vw, 380px);min-height:220px;
+  overflow:hidden;border:1px solid var(--line);background:#0c0908;
+}
+.hero-stage video,.hero-stage img{width:100%;height:100%;object-fit:cover;display:block}
+.hero-stage::after{
+  content:"";position:absolute;inset:0;
+  background:linear-gradient(180deg, rgba(20,15,12,.12), rgba(20,15,12,.55));
+  pointer-events:none;
 }
 .nav{display:flex;gap:14px;flex-wrap:wrap;font:12px/1 var(--mono);text-transform:uppercase;letter-spacing:.06em}
 .nav a{color:var(--mute)}
@@ -152,7 +162,7 @@ h1{font:600 clamp(1.6rem,4vw,2.1rem)/1.2 var(--serif);margin:0 0 10px;letter-spa
 }
 .form-row input::placeholder{color:#5a7088}
 .form-row button{
-  border:0;border-left:1px solid var(--line);background:var(--accent);color:#041018;
+  border:0;border-left:1px solid var(--line);background:var(--accent);color:#1a120e;
   font:700 12px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;
   padding:0 18px;cursor:pointer;
 }
@@ -336,10 +346,14 @@ export function shell(opts: {
 <meta property="og:title" content="${escapeHtml(opts.title)}">
 <meta property="og:description" content="${escapeHtml(opts.description)}">
 <meta property="og:url" content="${escapeHtml(canonical)}">
-<meta name="twitter:card" content="summary">
+<meta property="og:image" content="${ORIGIN}/brand/og.jpg">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${escapeHtml(opts.title)}">
 <meta name="twitter:description" content="${escapeHtml(opts.description)}">
-<meta name="theme-color" content="#0b1220">
+<meta name="twitter:image" content="${ORIGIN}/brand/og.jpg">
+<meta name="theme-color" content="#140f0c">
+<link rel="icon" href="/brand/mark.jpg" type="image/jpeg">
+<link rel="apple-touch-icon" href="/brand/mark.jpg">
 ${fonts()}
 <style>${css()}</style>
 ${jsonLd}
@@ -354,7 +368,7 @@ ${jsonLd}
 </div>
 <div class="wrap">
   <header class="top">
-    <a class="brand" href="/"><span class="mark">SP</span> Sitemapper</a>
+    <a class="brand" href="/"><img class="mark" src="/brand/mark.jpg" width="36" height="36" alt=""> Sitemapper</a>
     <nav class="nav" aria-label="Primary">
       <a href="/">Scan</a>
       <a href="/about">About</a>
@@ -433,6 +447,11 @@ function stepRail(active: 1 | 2 | 3): string {
 
 export function homeHtml(stats: { runs: number; pages: number }): string {
   const body = `
+<div class="hero-stage" aria-hidden="true">
+  <video autoplay muted loop playsinline poster="/brand/hero.jpg">
+    <source src="/brand/hero.mp4" type="video/mp4">
+  </video>
+</div>
 <p class="kicker">Indexability &amp; website change intelligence</p>
 <h1>Know what a deploy changed.</h1>
 <p class="lede">Paste a public site. Sitemapper reads robots.txt and XML sitemaps, checks live pages, then keeps the evidence. Monitoring tells you what disappeared, what became noindex, and what was not true yesterday. No account for the first scan.</p>
