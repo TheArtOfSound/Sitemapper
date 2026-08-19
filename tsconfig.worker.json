@@ -9,5 +9,15 @@
     "moduleResolution": "Bundler",
     "noEmitOnError": true
   },
-  "include": ["worker/**/*.ts", "src/types.ts", "src/utils/url.ts", "src/core/robots.ts"]
+  "include": [
+    "worker/**/*.ts",
+    "src/types.ts",
+    "src/utils/url.ts",
+    "src/core/robots.ts",
+    "src/security/ssrf.ts",
+    "src/diff/**/*.ts",
+    "src/plans.ts",
+    "src/issues/catalog.ts"
+  ],
+  "exclude": ["worker-dist", "node_modules", "dist", "**/*.test.ts"]
 }

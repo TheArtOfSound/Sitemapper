@@ -1,13 +1,15 @@
 #!/usr/bin/env node
+import { readFile } from 'node:fs/promises';
 import { Command } from 'commander';
 import { buildSiteIndex } from './build.js';
+import { evaluateGuard, snapshotFromAuditJson, DEFAULT_GUARD_RULES } from './guard.js';
 
 const program = new Command();
 
 program
   .name('sitemapper')
-  .description('Generate public searchable site indexes from sitemap.xml, with built-in SEO and crawlability checks.')
-  .version('0.1.0');
+  .description('Indexability audits, sitemap inventories, and deploy regression guards.')
+  .version('0.8.0');
 
 program
   .command('build')
@@ -55,6 +57,33 @@ program
       printSummary(result, options.out);
     } catch (error) {
       console.error(`Sitemapper failed: ${error instanceof Error ? error.message : String(error)}`);
+      process.exitCode = 1;
+    }
+  });
+
+program
+  .command('guard')
+  .description('Compare two Sitemapper JSON snapshots and fail on configured indexability regressions')
+  .requiredOption('--current <file>', 'Current audit JSON (index.json or seo-report.json)')
+  .requiredOption('--baseline <file>', 'Baseline audit JSON')
+  .option('--json', 'Print machine-readable JSON', false)
+  .action(async (options: { current: string; baseline: string; json?: boolean }) => {
+    try {
+      const current = snapshotFromAuditJson(JSON.parse(await readFile(options.current, 'utf8')));
+      const baseline = snapshotFromAuditJson(JSON.parse(await readFile(options.baseline, 'utf8')));
+      const result = evaluateGuard(baseline, current, DEFAULT_GUARD_RULES);
+      if (options.json) {
+        console.log(JSON.stringify(result, null, 2));
+      } else {
+        console.log(result.passed ? 'Sitemapper guard: passed' : 'Sitemapper guard: FAILED');
+        console.log(result.summary);
+        for (const failure of result.failures) {
+          console.log(`- [${failure.class}] ${failure.code} ${failure.summary}`);
+        }
+      }
+      if (!result.passed) process.exitCode = 1;
+    } catch (error) {
+      console.error(`Sitemapper guard failed: ${error instanceof Error ? error.message : String(error)}`);
       process.exitCode = 1;
     }
   });

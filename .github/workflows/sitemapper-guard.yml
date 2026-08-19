@@ -1,0 +1,38 @@
+name: Sitemapper deploy guard
+
+on:
+  workflow_call:
+    inputs:
+      site:
+        required: true
+        type: string
+      baseline:
+        required: false
+        type: string
+        default: sitemapper-baseline.json
+      max-pages:
+        required: false
+        type: number
+        default: 200
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build Sitemapper
+        run: npm ci && npm run build
+        working-directory: ${{ github.action_path || '.' }}
+      - name: Audit current sitemap
+        run: node dist/cli.js audit "${{ inputs.site }}" --out sitemapper-current --max-pages ${{ inputs.max-pages }}
+      - name: Compare against baseline
+        if: hashFiles(inputs.baseline) != ''
+        run: node dist/cli.js guard --current sitemapper-current/index.json --baseline "${{ inputs.baseline }}" --json
+      - name: Upload current snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: sitemapper-current
+          path: sitemapper-current

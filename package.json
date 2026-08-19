@@ -1,7 +1,7 @@
 {
   "name": "sitemapper",
-  "version": "0.1.0",
-  "description": "Generate public searchable site indexes from sitemap.xml, with built-in SEO and crawlability checks.",
+  "version": "0.8.0",
+  "description": "Indexability and website change intelligence: sitemap-first audits, snapshot diffs, and deploy regression guards (CLI + Cloudflare Worker SaaS).",
   "type": "module",
   "bin": {
     "sitemapper": "dist/cli.js"
@@ -14,11 +14,12 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "build:worker": "tsc -p tsconfig.worker.json",
-    "deploy:worker": "npm run build:worker && wrangler deploy",
+    "deploy:worker": "wrangler deploy",
     "dev": "tsx src/cli.ts",
-    "dev:worker": "npm run build:worker && wrangler dev",
+    "dev:worker": "wrangler dev",
     "test": "vitest run",
     "test:live": "SITEMAPPER_LIVE=1 vitest run src/test/live.test.ts",
+    "types": "wrangler types",
     "check": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.worker.json --noEmit"
   },
   "keywords": [

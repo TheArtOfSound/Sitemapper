@@ -5,5 +5,9 @@ coverage/
 .DS_Store
 .env
 .env.*
+!.env.example
+.dev.vars
+.wrangler/
 site-index/
 *.log
+worker-configuration.d.ts

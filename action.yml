@@ -1,0 +1,42 @@
+name: Sitemapper Guard
+description: Fail a deploy when Sitemapper detects deterministic indexability regressions versus a baseline snapshot.
+author: TheArtOfSound
+branding:
+  icon: activity
+  color: blue
+inputs:
+  site:
+    description: Site origin or sitemap URL to audit
+    required: true
+  baseline:
+    description: Path to a previous Sitemapper JSON snapshot
+    required: false
+    default: sitemapper-baseline.json
+  max-pages:
+    description: Max pages to inspect
+    required: false
+    default: '200'
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+    - name: Install Sitemapper
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: npm ci && npm run build
+    - name: Audit
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: node dist/cli.js audit "${{ inputs.site }}" --out /tmp/sitemapper-current --max-pages ${{ inputs.max-pages }}
+    - name: Guard
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        if [ -f "${{ github.workspace }}/${{ inputs.baseline }}" ]; then
+          node dist/cli.js guard --current /tmp/sitemapper-current/index.json --baseline "${{ github.workspace }}/${{ inputs.baseline }}"
+        else
+          echo "No baseline at ${{ inputs.baseline }}; wrote current snapshot only. Commit sitemapper-current/index.json as the baseline."
+          cp /tmp/sitemapper-current/index.json "${{ github.workspace }}/sitemapper-baseline.json"
+        fi

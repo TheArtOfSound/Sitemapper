@@ -1,4 +1,5 @@
 import type { RedirectHop } from '../types.js';
+import { assertPublicHttpUrl, readLimitedBody } from '../security/ssrf.js';
 
 export interface FetchTextResult {
   url: string;
@@ -56,17 +57,19 @@ async function fetchManual(
   url: string,
   timeoutMs: number
 ): Promise<{ status: number; location: string; finalUrl: string; text: string }> {
+  const parsed = assertPublicHttpUrl(url);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url, {
+    const response = await fetch(parsed.toString(), {
       redirect: 'manual',
       signal: controller.signal,
       headers: { 'user-agent': UA, accept: ACCEPT }
     });
     const location = response.headers.get('location') ?? '';
+    if (location) assertPublicHttpUrl(new URL(location, parsed).toString());
     const isRedirect = response.status >= 300 && response.status < 400 && Boolean(location);
-    const text = isRedirect ? '' : await response.text();
+    const text = isRedirect ? '' : await readLimitedBody(response);
     return { status: response.status, location, finalUrl: response.url || url, text };
   } finally {
     clearTimeout(timeout);
@@ -74,11 +77,12 @@ async function fetchManual(
 }
 
 export async function fetchText(url: string, timeoutMs: number): Promise<FetchTextResult> {
+  const parsed = assertPublicHttpUrl(url);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch(url, {
+    const response = await fetch(parsed.toString(), {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
@@ -86,12 +90,13 @@ export async function fetchText(url: string, timeoutMs: number): Promise<FetchTe
         accept: 'text/html,application/xhtml+xml,application/xml,text/xml;q=0.9,*/*;q=0.8'
       }
     });
+    if (response.url) assertPublicHttpUrl(response.url);
 
     return {
       url,
       status: response.status,
       ok: response.ok,
-      text: await response.text(),
+      text: await readLimitedBody(response),
       finalUrl: response.url
     };
   } finally {
