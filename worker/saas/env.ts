@@ -19,6 +19,10 @@ export type Env = {
   STRIPE_PRICE_PRO_ANNUAL?: string;
   STRIPE_PRICE_AGENCY_MONTHLY?: string;
   STRIPE_PRICE_AGENCY_ANNUAL?: string;
+  RESEND_API_KEY?: string;
+  RESEND_FROM?: string;
+  OORT_SSO_SECRET?: string;
+  FLOWS_SSO_SECRET?: string;
 };
 
 export type CrawlMessage = {

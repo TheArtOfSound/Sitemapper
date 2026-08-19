@@ -1,4 +1,5 @@
 import { entitlementsFor, type Entitlements } from '../../src/plans.js';
+import { emailConfigured, sendEmail } from './email.js';
 import { json, newId, nowIso, originOf, randomToken, redirect, sha256Hex, timingSafeEqual, type Env } from './env.js';
 
 const COOKIE = 'sp_session';
@@ -323,3 +324,81 @@ export async function logout(request: Request, env: Env): Promise<Response> {
 }
 
 export { timingSafeEqual };
+
+export async function startMagicLink(env: Env, request: Request, email: string, next: string): Promise<Response> {
+  const normalized = email.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+    return redirect(`/login?error=${encodeURIComponent('Enter a valid email address.')}&next=${encodeURIComponent(next)}`);
+  }
+  if (!emailConfigured(env)) {
+    return redirect(`/login?error=${encodeURIComponent('Email login is not configured on this deployment.')}&next=${encodeURIComponent(next)}`);
+  }
+  const token = await randomToken(24);
+  const tokenHash = await sha256Hex(token);
+  await env.DB.prepare('INSERT INTO magic_links (token_hash, email, next_path, created_at, expires_at) VALUES (?, ?, ?, ?, ?)')
+    .bind(tokenHash, normalized, next, nowIso(), new Date(Date.now() + 15 * 60_000).toISOString())
+    .run();
+  const origin = originOf(request, env);
+  const link = `${origin}/auth/magic?token=${token}`;
+  const sent = await sendEmail(env, {
+    to: normalized,
+    subject: 'Sign in to Sitemapper',
+    text: `Open this link to sign in (expires in 15 minutes):\n${link}\n`,
+    html: `<p>Open this link to sign in to Sitemapper. It expires in 15 minutes.</p><p><a href="${link}">${link}</a></p><p>If you did not request this, ignore the email.</p>`,
+  });
+  if (!sent.ok) {
+    return redirect(`/login?error=${encodeURIComponent('Could not send the sign-in email.')}&next=${encodeURIComponent(next)}`);
+  }
+  return redirect(`/login?sent=1&next=${encodeURIComponent(next)}`);
+}
+
+export async function finishMagicLink(env: Env, request: Request): Promise<Response> {
+  const token = new URL(request.url).searchParams.get('token') || '';
+  if (!token) return redirect('/login?error=Missing%20token');
+  const tokenHash = await sha256Hex(token);
+  const row = await env.DB.prepare('SELECT email, next_path, expires_at FROM magic_links WHERE token_hash = ?')
+    .bind(tokenHash)
+    .first<{ email: string; next_path: string | null; expires_at: string }>();
+  await env.DB.prepare('DELETE FROM magic_links WHERE token_hash = ?').bind(tokenHash).run();
+  if (!row || Date.parse(row.expires_at) < Date.now()) {
+    return redirect('/login?error=This%20sign-in%20link%20expired.%20Request%20a%20new%20one.');
+  }
+  const ident = await upsertEmailUser(env, row.email);
+  return finishLogin(env, request, ident.userId, ident.workspaceId, row.next_path || '/app');
+}
+
+export async function finishOortSso(env: Env, request: Request): Promise<Response> {
+  const secret = env.OORT_SSO_SECRET?.trim() || env.FLOWS_SSO_SECRET?.trim();
+  const token = new URL(request.url).searchParams.get('token') || '';
+  const next = new URL(request.url).searchParams.get('next') || '/app';
+  if (!secret || !token) return redirect('/login?error=Oort%20SSO%20is%20not%20configured.');
+  const payload = await verifyOortToken(token, secret);
+  if (!payload || typeof payload.email !== 'string' || typeof payload.exp !== 'number' || payload.exp < Date.now()) {
+    return redirect('/login?error=Oort%20sign-in%20token%20was%20invalid.');
+  }
+  const ident = await upsertEmailUser(env, payload.email);
+  if (typeof payload.displayName === 'string') {
+    await env.DB.prepare('UPDATE users SET name = COALESCE(?, name) WHERE id = ?').bind(payload.displayName, ident.userId).run();
+  }
+  return finishLogin(env, request, ident.userId, ident.workspaceId, next.startsWith('/') ? next : '/app');
+}
+
+async function verifyOortToken(token: string, secret: string): Promise<Record<string, unknown> | null> {
+  const dot = token.lastIndexOf('.');
+  if (dot < 1) return null;
+  const body = token.slice(0, dot);
+  const sig = token.slice(dot + 1);
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+  const pad = sig.length % 4 === 0 ? '' : '='.repeat(4 - (sig.length % 4));
+  const raw = atob(sig.replace(/-/g, '+').replace(/_/g, '/') + pad);
+  const sigBytes = Uint8Array.from(raw, (c) => c.charCodeAt(0));
+  const ok = await crypto.subtle.verify('HMAC', key, sigBytes, new TextEncoder().encode(body));
+  if (!ok) return null;
+  const bodyPad = body.length % 4 === 0 ? '' : '='.repeat(4 - (body.length % 4));
+  const jsonRaw = atob(body.replace(/-/g, '+').replace(/_/g, '/') + bodyPad);
+  try {
+    return JSON.parse(jsonRaw) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}

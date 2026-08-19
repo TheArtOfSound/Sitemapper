@@ -27,23 +27,41 @@ export function appShell(opts: {
     .replace('class="loading" id="loading"', 'class="loading" id="loading" hidden');
 }
 
-export function loginHtml(next: string, envFlags: { github: boolean; google: boolean; dev: boolean }, error?: string): string {
+export function loginHtml(
+  next: string,
+  envFlags: { github: boolean; google: boolean; dev: boolean; email: boolean; oort: boolean },
+  notice?: { error?: string; sent?: boolean }
+): string {
   const q = `?next=${encodeURIComponent(next)}`;
   const buttons = [
-    envFlags.github ? `<a class="btn primary" href="/auth/github${q}">Continue with GitHub</a>` : '',
+    envFlags.oort ? `<a class="btn primary" href="https://oortstack.com/api/sso/sitemapper${q}">Continue with Oort</a>` : '',
+    envFlags.github ? `<a class="btn" href="/auth/github${q}">Continue with GitHub</a>` : '',
     envFlags.google ? `<a class="btn" href="/auth/google${q}">Continue with Google</a>` : '',
     envFlags.dev ? `<a class="btn" href="/auth/dev${q}">Local dev login</a>` : '',
   ]
     .filter(Boolean)
     .join('');
+  const emailForm = envFlags.email
+    ? `<form method="post" action="/login" class="form-row" style="margin-top:12px">
+        <input type="hidden" name="next" value="${escapeHtml(next)}">
+        <input name="email" type="email" required autocomplete="email" placeholder="you@company.com">
+        <button type="submit">Email a sign-in link</button>
+      </form>
+      <p class="hint">We email a 15-minute link. No password.</p>`
+    : '';
+  const empty = !buttons && !envFlags.email
+    ? '<p>No login providers are configured on this deployment.</p>'
+    : '';
   const body = `
 <p class="kicker">Account</p>
 <h1>Sign in to monitor a site</h1>
 <p class="lede">Anonymous scans stay free. An account unlocks history, diffs, alerts, and deploy guardrails.</p>
-${error ? `<div class="verdict"><strong>${escapeHtml(error)}</strong></div>` : ''}
+${notice?.sent ? `<div class="verdict"><strong>Check your email for the sign-in link.</strong></div>` : ''}
+${notice?.error ? `<div class="verdict"><strong>${escapeHtml(notice.error)}</strong></div>` : ''}
 <div class="card">
-  <h2>Choose a sign-in method</h2>
-  <div class="actions">${buttons || '<p>No login providers are configured on this deployment. Set GitHub/Google OAuth secrets, or AUTH_DEV_LOGIN=1 for local development.</p>'}</div>
+  <h2>Sign in</h2>
+  ${emailForm}
+  <div class="actions" style="margin-top:14px">${buttons}${empty}</div>
   <p class="hint">Google sign-in also requests Search Console readonly access so we can label INDEXED state when you connect a property. Sitemap submission is a hint, not a guarantee of indexing.</p>
 </div>`;
   return appShell({ title: 'Sign in · Sitemapper', description: 'Sign in to monitor sitemap and indexability changes.', body, path: '/login', noindex: true });

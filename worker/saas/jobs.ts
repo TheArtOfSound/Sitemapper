@@ -1,4 +1,5 @@
 import type { Result } from '../render.js';
+import { sendEmail } from './email.js';
 import { resultToSnapshot, saveSnapshot } from './persist.js';
 import { newId, nowIso, type CrawlMessage, type Env } from './env.js';
 
@@ -122,9 +123,18 @@ async function deliverAlerts(
         });
         status = res.ok ? 'sent' : `http_${res.status}`;
         detail = await res.text();
+      } else if (channel.type === 'email') {
+        const sent = await sendEmail(env, {
+          to: channel.destination,
+          subject: `Sitemapper: ${project.host} changed`,
+          text: `${summary}\nhttps://sitemapper.oortstack.com/app/sites/${projectId}/changes\n`,
+          html: `<p>${summary}</p><p><a href="https://sitemapper.oortstack.com/app/sites/${projectId}/changes">Open changes</a></p>`,
+        });
+        status = sent.ok ? 'sent' : 'failed';
+        detail = sent.error || '';
       } else {
         status = 'unconfigured';
-        detail = 'Email delivery requires EMAIL_FROM and a mail provider secret.';
+        detail = 'Unknown alert channel type.';
       }
     } catch (error) {
       status = 'failed';

@@ -6,13 +6,17 @@ import {
   finishGithub,
   finishGoogle,
   finishLogin,
+  finishMagicLink,
+  finishOortSso,
   logout,
   readSession,
   requireUser,
+  startMagicLink,
   startOAuth,
   upsertEmailUser,
   type SessionUser,
 } from './auth.js';
+import { emailConfigured } from './email.js';
 import { billingPortal, handleStripeWebhook, startCheckout } from './billing.js';
 import { json, newId, nowIso, originOf, redirect, track, type Env } from './env.js';
 import { handleGscRoutes } from './gsc.js';
@@ -102,14 +106,22 @@ export async function handleSaas(request: Request, env: Env): Promise<Response |
         github: Boolean(env.GITHUB_CLIENT_ID),
         google: Boolean(env.GOOGLE_CLIENT_ID),
         dev: env.AUTH_DEV_LOGIN === '1',
-      }, url.searchParams.get('error') || undefined)
+        email: emailConfigured(env),
+        oort: Boolean(env.OORT_SSO_SECRET || env.FLOWS_SSO_SECRET),
+      }, { error: url.searchParams.get('error') || undefined, sent: url.searchParams.get('sent') === '1' })
     );
+  }
+  if (path === '/login' && request.method === 'POST') {
+    const form = await request.formData();
+    return startMagicLink(env, request, String(form.get('email') || ''), String(form.get('next') || '/app'));
   }
   if (path === '/logout') return logout(request, env);
   if (path === '/auth/github') return startOAuth(env, request, 'github');
   if (path === '/auth/google') return startOAuth(env, request, 'google');
   if (path === '/auth/github/callback') return finishGithub(env, request);
   if (path === '/auth/google/callback') return finishGoogle(env, request);
+  if (path === '/auth/magic') return finishMagicLink(env, request);
+  if (path === '/auth/oort/callback') return finishOortSso(env, request);
   if (path === '/auth/dev' && env.AUTH_DEV_LOGIN === '1') {
     const ident = await upsertEmailUser(env, 'dev@localhost');
     await track(env, 'signup_completed', { provider: 'dev' }, ident.userId, ident.workspaceId);
@@ -250,6 +262,14 @@ async function handleApp(request: Request, env: Env, path: string, url: URL): Pr
 <p class="kicker">Workspace</p>
 <h1>Settings</h1>
 <div class="card">
+  <h2>Email alerts</h2>
+  <p>Send grouped regression mail from hello@oortstack.com when a crawl finds something that matters.</p>
+  <form class="form-row" method="post" action="/app/settings/email">
+    <input name="destination" type="email" required placeholder="alerts@yourdomain.com">
+    <button type="submit">Add email</button>
+  </form>
+</div>
+<div class="card">
   <h2>Webhook alerts</h2>
   <p>POST a JSON payload when a crawl finds grouped regressions. Slack incoming webhooks work here too.</p>
   <form class="form-row" method="post" action="/app/settings/webhook">
@@ -264,6 +284,16 @@ async function handleApp(request: Request, env: Env, path: string, url: URL): Pr
   ${user.entitlements.api ? `<form method="post" action="/app/settings/apikey"><button class="btn" type="submit">Create API key</button></form>` : ''}
 </div>`;
     return html(appShell({ title: 'Settings · Sitemapper', description: 'Workspace settings', body, path: '/app/settings', user }));
+  }
+  if (path === '/app/settings/email' && request.method === 'POST') {
+    if (!user.entitlements.emailAlerts) return json({ error: 'Email alerts require Builder or higher.' }, 402);
+    const form = await request.formData();
+    const destination = String(form.get('destination') || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(destination)) return json({ error: 'Valid email required.' }, 400);
+    await env.DB.prepare('INSERT INTO alert_channels (id, workspace_id, type, destination, enabled, created_at) VALUES (?, ?, ?, ?, 1, ?)')
+      .bind(newId('chn'), user.workspaceId, 'email', destination, nowIso())
+      .run();
+    return redirect('/app/settings');
   }
   if (path === '/app/settings/webhook' && request.method === 'POST') {
     if (!user.entitlements.webhooks) return json({ error: 'Webhooks require Pro or Agency.' }, 402);

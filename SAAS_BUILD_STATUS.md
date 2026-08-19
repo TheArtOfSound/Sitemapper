@@ -45,10 +45,10 @@ Working tree: `Projects/01 Active Apps/sitemap` (live v0.7 Worker, GitHub `TheAr
 
 | Dependency | Why | What works without it |
 |---|---|---|
-| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | GitHub OAuth app | Local `AUTH_DEV_LOGIN=1` |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | GitHub OAuth app | Email magic-link + local `AUTH_DEV_LOGIN=1` |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth + GSC | GSC labeled unknown |
 | `STRIPE_SECRET_KEY` + `STRIPE_PRICE_*` + webhook secret | Checkout | Pricing page is real; checkout returns 503 with the exact blocker |
-| Email sending | Magic-link + email alerts | Webhooks work; email marked unconfigured |
+| `OORT_SSO_SECRET` (same value as Flows) | Continue with Oort | Magic-link works without it. Oort mint route added at `oort-ledger-sso/app/api/sso/sitemapper` and still needs an Oort deploy. |
 
 ## Next
 
