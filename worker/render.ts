@@ -88,6 +88,13 @@ body{
 a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline;text-underline-offset:3px}
 .wrap{max-width:720px;margin:0 auto;padding:28px 18px 72px}
+.wrap.home{max-width:980px}
+.pipeline{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:18px 0 22px}
+.pipeline div{border:1px solid var(--line);background:var(--panel);padding:12px 10px}
+.pipeline b{display:block;font:700 11px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:6px}
+.pipeline span{display:block;color:var(--mute);font-size:13px;line-height:1.4}
+.split{display:grid;grid-template-columns:1.2fr .8fr;gap:14px}
+@media(max-width:800px){.pipeline,.split{grid-template-columns:1fr}}
 .top{
   display:flex;align-items:center;justify-content:space-between;gap:12px;
   margin-bottom:28px;padding-bottom:14px;border-bottom:1px solid var(--line);
@@ -349,7 +356,7 @@ ${jsonLd}
   <header class="top">
     <a class="brand" href="/"><span class="mark">SP</span> Sitemapper</a>
     <nav class="nav" aria-label="Primary">
-      <a href="/">Map</a>
+      <a href="/">Scan</a>
       <a href="/about">About</a>
       <a href="/compare">Compare</a>
       <a href="/guides/xml-sitemap-checker">Guides</a>
@@ -360,7 +367,7 @@ ${jsonLd}
   </header>
   ${opts.body}
   <footer class="footer">
-    <span>Free public survey · <a href="https://oortstack.com">Oortstack</a></span>
+    <span>Free scan · paid monitoring · <a href="https://oortstack.com">Oortstack</a></span>
     <span>
       <a href="/robots.txt">robots</a> ·
       <a href="/sitemap.xml">sitemap</a> ·
@@ -426,45 +433,60 @@ function stepRail(active: 1 | 2 | 3): string {
 
 export function homeHtml(stats: { runs: number; pages: number }): string {
   const body = `
-${stepRail(1)}
-<p class="kicker">Three steps · no account</p>
-<h1>Map a public sitemap.</h1>
-<p class="lede">Enter a site. We read robots.txt and XML sitemaps, sample pages, then hand you fixes — and a pack your coding agent can open.</p>
+<p class="kicker">Indexability &amp; website change intelligence</p>
+<h1>Know what a deploy changed.</h1>
+<p class="lede">Paste a public site. Sitemapper reads robots.txt and XML sitemaps, checks live pages, then keeps the evidence. Monitoring tells you what disappeared, what became noindex, and what was not true yesterday. No account for the first scan.</p>
+
+<div class="pipeline" aria-label="DECLARED to CHANGED">
+  <div><b>Declared</b><span>What the sitemap says should exist.</span></div>
+  <div><b>Live</b><span>Status, canonical, robots, noindex, metadata.</span></div>
+  <div><b>Indexed</b><span>Google Search Console when you connect it. HTTP 200 is not indexed.</span></div>
+  <div><b>Changed</b><span>Diff versus the last known-good snapshot.</span></div>
+</div>
 
 <div class="card" id="map">
-  <h2><span class="n">1</span>Paste a URL</h2>
-  <p>Homepage or a direct <code style="font-family:var(--mono);color:var(--accent)">sitemap.xml</code> link.</p>
+  <h2><span class="n">1</span>Scan a public site</h2>
+  <p>Homepage or a direct <code style="font-family:var(--mono);color:var(--accent)">sitemap.xml</code>. Free. No email.</p>
   <form class="form-row" id="map-form" action="/api/report" method="get" role="search">
     <label class="visually-hidden" for="site" style="position:absolute;clip:rect(0,0,0,0);width:1px;height:1px;overflow:hidden">Site URL</label>
     <input id="site" name="site" type="url" inputmode="url" autocomplete="url" required
       placeholder="https://example.com">
-    <button type="submit">Start survey</button>
+    <button type="submit">Analyze</button>
   </form>
-  <p class="hint">Caps: 1,200 URLs · 40 deep checks · saved share link lasts 30 days · ${stats.runs.toLocaleString()} surveys · ${stats.pages.toLocaleString()} URLs indexed</p>
+  <p class="hint">${stats.runs.toLocaleString()} public surveys · ${stats.pages.toLocaleString()} URLs indexed · 1,200 URL / 40 deep-check preview cap</p>
   <div class="demos">
     <a class="chip" href="/api/report?site=https%3A%2F%2Fwesearch.press">Demo: WeSearch</a>
     <a class="chip" href="/api/report?site=https%3A%2F%2Fimagineqira.com">Demo: thin sitemap</a>
-    <a class="chip" href="/compare">Why different</a>
+    <a class="chip" href="/pricing">Monitor from $19/mo</a>
+    <a class="chip" href="/login">Sign in</a>
   </div>
 </div>
 
-<div class="card">
-  <h2><span class="n">2</span>What happens next</h2>
-  <ol class="list" style="list-style:decimal;padding-left:1.2em">
-    <li style="border:0;padding:6px 0"><strong style="display:inline">Discover</strong> — robots + sitemap indexes</li>
-    <li style="border:0;padding:6px 0"><strong style="display:inline">Sample</strong> — titles, meta, canonicals, robots conflicts</li>
-    <li style="border:0;padding:6px 0"><strong style="display:inline">Export</strong> — agent pack (AGENTS.md, tasks, inventory)</li>
-  </ol>
+<div class="split">
+  <div class="card">
+    <h2>Then monitor it</h2>
+    <p>After the scan: <strong style="color:var(--text)">Monitor this site</strong>. Sitemapper re-runs without your laptop, diffs snapshots, and alerts on grouped regressions — sitemap gone, URL-count collapse, new noindex, 404s, canonical changes.</p>
+    <p>CLI and GitHub Action fail a deploy only on those deterministic rules, not a cosmetic SEO score.</p>
+  </div>
+  <div class="card">
+    <h2>Plans</h2>
+    <ul class="list">
+      <li><strong>Free</strong> — anonymous scan, 1 saved site</li>
+      <li><strong>Builder $19</strong> — daily monitoring, email</li>
+      <li><strong>Pro $49</strong> — GSC, GitHub, webhooks, API</li>
+      <li><strong>Agency $149</strong> — teams, more URLs, branded reports</li>
+    </ul>
+    <div class="actions"><a class="btn primary" href="/pricing">Full pricing</a></div>
+  </div>
 </div>
 `;
 
-  return shell({
-    title: 'Sitemapper — Map a sitemap in 3 steps',
+  const markup = shell({
+    title: 'Sitemapper — Indexability & website change intelligence',
     description:
-      'Free step-by-step XML sitemap survey: discover URLs, get fix list, export an AI coding agent pack. No account.',
+      'Free sitemap scan with no account. Monitoring catches deploy regressions: removed URLs, new noindex, canonical changes, and 404s versus the last snapshot.',
     body,
     path: '/',
-    activeStep: 1,
     jsonLd: [
       {
         '@context': 'https://schema.org',
@@ -473,10 +495,11 @@ ${stepRail(1)}
         url: ORIGIN,
         applicationCategory: 'BrowserApplication',
         offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-        description: 'Step-by-step public sitemap survey with AI agent export packs.',
+        description: 'Indexability and website change intelligence. Free public sitemap scan; paid monitoring for deploy regressions.',
       },
     ],
   });
+  return markup.replace('class="wrap"', 'class="wrap home"');
 }
 
 export function reportHtml(

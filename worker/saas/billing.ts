@@ -92,10 +92,11 @@ export async function handleStripeWebhook(env: Env, request: Request): Promise<R
     const customer = String(obj.customer || '');
     const subscription = String(obj.subscription || '');
     if (workspaceId) {
+      const plan = String((obj.metadata as { plan?: string } | undefined)?.plan || '');
       await env.DB.prepare(
-        'UPDATE workspaces SET stripe_customer_id = ?, stripe_subscription_id = ?, stripe_status = ? WHERE id = ?'
+        'UPDATE workspaces SET stripe_customer_id = ?, stripe_subscription_id = ?, stripe_status = ?, plan = CASE WHEN ? IN (\'builder\', \'pro\', \'agency\') THEN ? ELSE plan END WHERE id = ?'
       )
-        .bind(customer || null, subscription || null, 'active', workspaceId)
+        .bind(customer || null, subscription || null, 'active', plan, plan, workspaceId)
         .run();
     }
   }

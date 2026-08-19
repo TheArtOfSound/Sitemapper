@@ -83,7 +83,7 @@ export default {
     if (path === '/api/agent-pack') return handleAgentPack(url, env);
     if (path === '/api/pack') return handleAgentPackPage(url, env);
 
-    if (path === '/') return html(homeHtml(await readStats(env)), 200, 'public, max-age=120');
+    if (path === '/') return html(homeHtml(await readStats(env)), 200, 'public, max-age=30, must-revalidate');
 
     return html(
       errorHtml('Not found', 'That path is not part of Sitemapper. Try the map form or a guide.', `Path: ${path}`),
