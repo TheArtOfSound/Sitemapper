@@ -2,6 +2,17 @@
 
 export type Severity = 'error' | 'warning' | 'notice';
 export type Issue = { severity: Severity; code: string; message: string; evidence?: string };
+export type Scores = {
+  index: number;
+  seo: number;
+  sitemap: number;
+  /** Missing/true preserves legacy scored results; false means crawl evidence was insufficient. */
+  available?: boolean;
+};
+
+export function scoresAvailable(scores: Scores): boolean {
+  return scores.available !== false;
+}
 
 export type LatticeNode = {
   segment: string;
@@ -64,7 +75,7 @@ export function buildInsights(
   site: string,
   pages: PageLike[],
   source: { sitemapUrls: string[]; discoveredUrlCount: number; deepCheckedCount: number; compatibility: string },
-  scores: { index: number; seo: number; sitemap: number }
+  scores: Scores
 ): Insights {
   const lattice = buildLattice(pages.map((p) => p.path));
   const { depth, breadth, leaves } = measureLattice(lattice);
@@ -86,12 +97,13 @@ export function buildInsights(
     `f${freshnessCoverage}`,
   ].join('.');
 
+  const scoreFingerprintParts = scoresAvailable(scores)
+    ? [scores.index, scores.seo, scores.sitemap]
+    : ['not-scored'];
   const fingerprintInput = [
     site,
     structuralSignature,
-    scores.index,
-    scores.seo,
-    scores.sitemap,
+    ...scoreFingerprintParts,
     source.discoveredUrlCount,
     source.deepCheckedCount,
     source.sitemapUrls.join('|'),
@@ -99,9 +111,11 @@ export function buildInsights(
   const fingerprint = shortHash(fingerprintInput);
 
   const proof: string[] = [
-    `Run fingerprint ${fingerprint} is derived from host, structural signature, scores, and discovered sitemap set.`,
-    `Path lattice: depth ${depth}, breadth ${breadth}, ${leaves} leaf paths across ${pages.length} indexed URLs.`,
-    `Freshness coverage: ${freshnessCoverage}% of indexed URLs carry lastmod (${withLastmod}/${pages.length}).`,
+    scoresAvailable(scores)
+      ? `Run fingerprint ${fingerprint} is derived from host, structural signature, scores, and discovered sitemap set.`
+      : `Run fingerprint ${fingerprint} is derived from host, structural signature, a Not scored marker, and discovered sitemap set.`,
+    `Path lattice: depth ${depth}, breadth ${breadth}, ${leaves} leaf paths across ${pages.length} inventory URLs.`,
+    `Freshness coverage: ${freshnessCoverage}% of inventory URLs carry lastmod (${withLastmod}/${pages.length}).`,
     `Section imbalance: top section holds ${imbalance}% of inventory${sections[0] ? ` (${sections[0].section})` : ''}.`,
     `Compatibility: ${source.compatibility}`,
   ];
@@ -257,6 +271,7 @@ export function flattenLattice(node: LatticeNode, limit = 40): Array<{ path: str
 
 export function recommendations(result: {
   source: { discoveredUrlCount: number; discoveredFromRobots: boolean };
+  scores?: Scores;
   stats: { errors: number; warnings: number };
   insights: Insights;
   issues: Issue[];
@@ -266,6 +281,19 @@ export function recommendations(result: {
   const codes = new Map<string, number>();
   for (const issue of [...result.issues, ...result.pages.flatMap((p) => p.issues)]) {
     codes.set(issue.code, (codes.get(issue.code) || 0) + 1);
+  }
+
+  if (result.scores && !scoresAvailable(result.scores)) {
+    return [
+      {
+        priority: 3,
+        title: 'Retry and verify sitemap availability',
+        why: 'This run did not collect enough sitemap inventory evidence to support a scored diagnosis.',
+        proof: codes.has('SCAN_INCONCLUSIVE')
+          ? 'SCAN_INCONCLUSIVE — no sitemap outage is asserted from this run.'
+          : 'No sitemap inventory evidence was collected; scores are Not scored.',
+      },
+    ];
   }
 
   if (result.source.discoveredUrlCount === 0) {

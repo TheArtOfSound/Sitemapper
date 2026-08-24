@@ -1,7 +1,10 @@
+import { canDeepCheck, entitlementsFor } from '../../src/plans.js';
 import type { Result } from '../render.js';
 import { sendEmail } from './email.js';
 import { resultToSnapshot, saveSnapshot } from './persist.js';
-import { newId, nowIso, type CrawlMessage, type Env } from './env.js';
+import { newId, nowIso, periodMonth, type CrawlMessage, type Env } from './env.js';
+
+export type AnalyzeFn = (site: string, opts?: { maxUrls?: number; maxDeep?: number }) => Promise<Result>;
 
 export async function handleScheduled(env: Env): Promise<void> {
   if (!env.DB) return;
@@ -23,11 +26,12 @@ export async function handleScheduled(env: Env): Promise<void> {
     if (running) continue;
     const jobId = newId('job');
     const period = new Date().toISOString().slice(0, 13);
-    await env.DB.prepare(
+    const inserted = await env.DB.prepare(
       'INSERT OR IGNORE INTO crawl_jobs (id, project_id, workspace_id, kind, status, idempotency_key, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
     )
       .bind(jobId, row.project_id, row.workspace_id, 'scheduled', 'queued', `${row.project_id}:scheduled:${period}`, nowIso())
       .run();
+    if (!inserted.meta.changes) continue;
     const next = new Date(Date.now() + row.frequency_minutes * 60_000).toISOString();
     await env.DB.prepare('UPDATE monitors SET last_started_at = ?, next_run_at = ?, last_status = ? WHERE project_id = ?')
       .bind(nowIso(), next, 'queued', row.project_id)
@@ -44,45 +48,94 @@ export async function handleScheduled(env: Env): Promise<void> {
   }
 }
 
-export async function handleQueue(batch: MessageBatch<CrawlMessage>, env: Env, analyze: (site: string) => Promise<Result>): Promise<void> {
+export async function handleQueue(batch: MessageBatch<CrawlMessage>, env: Env, analyze: AnalyzeFn): Promise<void> {
   for (const message of batch.messages) {
     try {
       await runCrawlJob(env, message.body, analyze);
       message.ack();
     } catch (error) {
+      const finishedAt = nowIso();
       await env.DB.prepare('UPDATE crawl_jobs SET status = ?, error = ?, finished_at = ? WHERE id = ?')
-        .bind('failed', error instanceof Error ? error.message : String(error), nowIso(), message.body.jobId)
+        .bind('failed', error instanceof Error ? error.message : String(error), finishedAt, message.body.jobId)
+        .run();
+      await env.DB.prepare('UPDATE monitors SET last_finished_at = ?, last_status = ? WHERE project_id = ?')
+        .bind(finishedAt, 'failed', message.body.projectId)
         .run();
       message.retry();
     }
   }
 }
 
-export async function runCrawlJob(env: Env, msg: CrawlMessage, analyze: (site: string) => Promise<Result>): Promise<void> {
+export async function runCrawlJob(env: Env, msg: CrawlMessage, analyze: AnalyzeFn): Promise<void> {
   await env.DB.prepare('UPDATE crawl_jobs SET status = ?, started_at = ? WHERE id = ?').bind('running', nowIso(), msg.jobId).run();
-  const result = await analyze(msg.siteUrl);
+  const workspace = await env.DB.prepare('SELECT plan, stripe_status FROM workspaces WHERE id = ?')
+    .bind(msg.workspaceId)
+    .first<{ plan: string; stripe_status: string }>();
+  const entitlements = entitlementsFor(workspace?.plan || 'free', workspace?.stripe_status);
+  const usage = await env.DB.prepare('SELECT deep_checks FROM usage_counters WHERE workspace_id = ? AND period = ?')
+    .bind(msg.workspaceId, periodMonth())
+    .first<{ deep_checks: number }>();
+  const usedDeep = Number(usage?.deep_checks || 0);
+  const remainingDeep = Math.max(0, entitlements.deepChecksPerMonth - usedDeep);
+  const maxDeep = canDeepCheck(entitlements, usedDeep, 1) ? Math.min(200, remainingDeep, entitlements.deepChecksPerMonth) : 0;
+  const result = await analyze(msg.siteUrl, {
+    maxUrls: Math.min(entitlements.monitoredUrls, 25_000),
+    maxDeep,
+  });
+  assertConclusiveCrawlResult(result);
   const snapshot = resultToSnapshot(result);
   const saved = await saveSnapshot(env, { projectId: msg.projectId, jobId: msg.jobId, kind: msg.kind, snapshot });
-  await env.DB.prepare('UPDATE crawl_jobs SET status = ?, finished_at = ?, snapshot_id = ? WHERE id = ?')
+  await env.DB.prepare('UPDATE crawl_jobs SET status = ?, error = NULL, finished_at = ?, snapshot_id = ? WHERE id = ?')
     .bind('complete', nowIso(), saved.snapshotId, msg.jobId)
     .run();
-  await env.DB.prepare('UPDATE monitors SET last_finished_at = ?, last_status = ? WHERE project_id = ?')
-    .bind(nowIso(), saved.events.some((event) => event.class === 'critical') ? 'regression' : 'ok', msg.projectId)
-    .run();
-  await env.DB.prepare(
-    `INSERT INTO usage_counters (workspace_id, period, monitored_urls, deep_checks, scans)
-     VALUES (?, ?, ?, ?, 1)
-     ON CONFLICT(workspace_id, period) DO UPDATE SET
-       monitored_urls = MAX(monitored_urls, excluded.monitored_urls),
-       deep_checks = deep_checks + excluded.deep_checks,
-       scans = scans + 1`
-  )
-    .bind(msg.workspaceId, new Date().toISOString().slice(0, 7), snapshot.declaredCount, snapshot.urls.filter((row) => row.deepChecked).length)
-    .run();
+
+  await runPostCommitStep(msg, 'monitor', async () => {
+    await env.DB.prepare('UPDATE monitors SET last_finished_at = ?, last_status = ? WHERE project_id = ?')
+      .bind(nowIso(), saved.events.some((event) => event.class === 'critical') ? 'regression' : 'ok', msg.projectId)
+      .run();
+  });
+  await runPostCommitStep(msg, 'usage', async () => {
+    await env.DB.prepare(
+      `INSERT INTO usage_counters (workspace_id, period, monitored_urls, deep_checks, scans)
+       VALUES (?, ?, ?, ?, 1)
+       ON CONFLICT(workspace_id, period) DO UPDATE SET
+         monitored_urls = MAX(monitored_urls, excluded.monitored_urls),
+         deep_checks = deep_checks + excluded.deep_checks,
+         scans = scans + 1`
+    )
+      .bind(msg.workspaceId, new Date().toISOString().slice(0, 7), snapshot.declaredCount, snapshot.urls.filter((row) => row.deepChecked).length)
+      .run();
+  });
 
   if (saved.events.some((event) => event.class === 'critical' || event.class === 'warning')) {
-    await deliverAlerts(env, msg.projectId, saved.snapshotId, saved.summary, saved.events);
+    await runPostCommitStep(msg, 'alerts', async () => {
+      await deliverAlerts(env, msg.projectId, saved.snapshotId, saved.summary, saved.events);
+    });
   }
+}
+
+async function runPostCommitStep(msg: CrawlMessage, step: 'monitor' | 'usage' | 'alerts', effect: () => Promise<void>): Promise<void> {
+  try {
+    await effect();
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: 'crawl_post_commit_step_failed',
+        jobId: msg.jobId,
+        projectId: msg.projectId,
+        step,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    );
+  }
+}
+
+export function assertConclusiveCrawlResult(result: Pick<Result, 'issues' | 'scores' | 'source'>): void {
+  const inconclusive = result.issues.some((issue) => issue.code === 'SCAN_INCONCLUSIVE');
+  const discoveredUrlCount = Number(result.source.discoveredUrlCount);
+  const hasInventory = Number.isFinite(discoveredUrlCount) && discoveredUrlCount >= 1;
+  if (!inconclusive && result.scores.available !== false && hasInventory) return;
+  throw new Error('SCAN_INCONCLUSIVE: crawl evidence was insufficient; snapshot was not persisted.');
 }
 
 async function deliverAlerts(
@@ -115,7 +168,7 @@ async function deliverAlerts(
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
-            text: `Sitemapper · ${project.host}\n${summary}`,
+            text: `Sitemapper · ${project.host}\n${summary}\nReview the grouped evidence and affected journey before acting.`,
             host: project.host,
             snapshotId,
             events: events.slice(0, 25),
@@ -126,9 +179,9 @@ async function deliverAlerts(
       } else if (channel.type === 'email') {
         const sent = await sendEmail(env, {
           to: channel.destination,
-          subject: `Sitemapper: ${project.host} changed`,
+          subject: `Sitemapper: ${project.host} — website change`,
           text: `${summary}\nhttps://sitemapper.oortstack.com/app/sites/${projectId}/changes\n`,
-          html: `<p>${summary}</p><p><a href="https://sitemapper.oortstack.com/app/sites/${projectId}/changes">Open changes</a></p>`,
+          html: `<p>${summary}</p><p><a href="https://sitemapper.oortstack.com/app/sites/${projectId}/changes">See what changed</a></p>`,
         });
         status = sent.ok ? 'sent' : 'failed';
         detail = sent.error || '';

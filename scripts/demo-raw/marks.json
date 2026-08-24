@@ -1,0 +1,58 @@
+[
+  {
+    "t": 1.52,
+    "label": "home"
+  },
+  {
+    "t": 4.1,
+    "label": "zoom-form"
+  },
+  {
+    "t": 6.53,
+    "label": "typed"
+  },
+  {
+    "t": 7.58,
+    "label": "submit"
+  },
+  {
+    "t": 8.39,
+    "label": "overlay"
+  },
+  {
+    "t": 21.07,
+    "label": "scan-20"
+  },
+  {
+    "t": 29.05,
+    "label": "scan-55"
+  },
+  {
+    "t": 120.31,
+    "label": "scan-90"
+  },
+  {
+    "t": 120.91,
+    "label": "report-url"
+  },
+  {
+    "t": 121.05,
+    "label": "report-ready"
+  },
+  {
+    "t": 123.09,
+    "label": "zoom-scores"
+  },
+  {
+    "t": 127.4,
+    "label": "monitor-cta"
+  },
+  {
+    "t": 130.54,
+    "label": "pricing"
+  },
+  {
+    "t": 134.87,
+    "label": "end"
+  }
+]

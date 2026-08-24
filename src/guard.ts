@@ -68,9 +68,9 @@ export function snapshotFromAuditJson(raw: unknown): CrawlSnapshot {
       description?: string;
       canonical?: string;
       lastmod?: string;
-      issues?: Array<{ code: string; severity: string }>;
+      issues?: Array<{ code: string; severity: string; message?: string; evidence?: string }>;
     }>;
-    issues?: Array<{ code: string; severity: string }>;
+    issues?: Array<{ code: string; severity: string; message?: string; evidence?: string }>;
     insights?: { fingerprint?: string };
   };
   const urls: UrlState[] = (data.pages || []).map((page) => ({
@@ -94,9 +94,20 @@ export function snapshotFromAuditJson(raw: unknown): CrawlSnapshot {
     indexableCount: urls.filter((row) => row.status === 200 && !row.noindex && row.robotsAllowed).length,
     urls,
     issues: [
-      ...(data.issues || []).map((issue) => ({ code: issue.code, severity: issue.severity })),
+      ...(data.issues || []).map((issue) => ({
+        code: issue.code,
+        severity: issue.severity,
+        message: issue.message,
+        evidence: issue.evidence,
+      })),
       ...urls.flatMap((row, i) =>
-        ((data.pages || [])[i]?.issues || []).map((issue) => ({ code: issue.code, severity: issue.severity, url: row.url }))
+        ((data.pages || [])[i]?.issues || []).map((issue) => ({
+          code: issue.code,
+          severity: issue.severity,
+          url: row.url,
+          message: issue.message,
+          evidence: issue.evidence,
+        }))
       ),
     ],
     scores: data.scores || { index: 0, seo: 0, sitemap: 0 },

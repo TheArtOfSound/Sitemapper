@@ -3,19 +3,26 @@
 <head>
 <meta charset="utf-8">
 <style>
-html,body{margin:0;height:100%;background:#140f0c;color:#f4ece4;
-  font-family:"IBM Plex Sans",system-ui,sans-serif;display:grid;place-items:center}
-.card{text-align:center;padding:40px}
-.kicker{font:12px/1 "IBM Plex Mono",monospace;letter-spacing:.16em;text-transform:uppercase;color:#7aa68a;margin-bottom:14px}
-h1{font:600 42px/1.15 "Source Serif 4",Georgia,serif;margin:0 0 12px}
-p{color:#b59a84;margin:0;font-size:18px}
+html,body{margin:0;height:100%;width:100%;background:#140f0c;color:#f4ece4;
+  font-family:"IBM Plex Sans",system-ui,sans-serif}
+body{position:relative;overflow:hidden}
+.bg{position:absolute;inset:0;background:#140f0c center/cover no-repeat;filter:saturate(1.05) contrast(1.06)}
+.veil{position:absolute;inset:0;background:linear-gradient(180deg,rgba(12,8,6,.35),rgba(12,8,6,.72) 55%,rgba(8,6,5,.88))}
+.card{position:relative;z-index:1;height:100%;display:grid;place-items:center;text-align:center;padding:48px}
+.kicker{font:13px/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.2em;text-transform:uppercase;color:#7aa68a;margin-bottom:18px}
+h1{font:600 64px/1.08 Georgia,"Source Serif 4",serif;margin:0 0 16px;letter-spacing:-.02em}
+p{color:#b59a84;margin:0;font:20px/1.4 "IBM Plex Sans",system-ui,sans-serif}
 </style>
 </head>
 <body>
+<div class="bg" style="background-image:url('./title-bg.jpg')"></div>
+<div class="veil"></div>
 <div class="card">
-  <div class="kicker">Sitemapper</div>
-  <h1>A real scan. Then monitoring.</h1>
-  <p>Declared → Live → Indexed → Changed</p>
+  <div>
+    <div class="kicker">Sitemapper</div>
+    <h1>What a deploy changed.</h1>
+    <p>Declared → Live → Indexed → Changed</p>
+  </div>
 </div>
 </body>
 </html>

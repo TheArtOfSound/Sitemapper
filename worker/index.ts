@@ -25,20 +25,47 @@ import { handleSaas } from './saas/app.js';
 import type { Env as SaasEnv } from './saas/env.js';
 import { handleQueue, handleScheduled } from './saas/jobs.js';
 import { isValidReportId, loadReport, saveReport, type StoredReport } from './store.js';
+import { criticalJourneyHrefs } from '../src/diff/impact.js';
 
 type Env = SaasEnv;
 type Entry = { url: string; lastmod?: string };
-type Candidate = Source & { site: string; rules: RobotsRules };
+type Candidate = Source & { site: string; rules: RobotsRules; discoveryInconclusive?: boolean };
 
 const MAX_SITEMAPS = 35;
 const MAX_URLS = 1200;
 const MAX_DEEP = 40;
 const FETCH_BATCH = 6;
 const TIMEOUT_MS = 6500;
+const ANONYMOUS_DISCOVERY_BUDGET_MS = 40_000;
 const MAX_REDIRECTS = 8;
 const UA = 'SitemapperWorker/1.2 (+https://sitemapper.oortstack.com; +https://github.com/TheArtOfSound/Sitemapper)';
 const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '', trimValues: true });
 const ORIGIN = 'https://sitemapper.oortstack.com';
+
+type ScanStage = 'start' | 'robots' | 'sitemaps' | 'pages' | 'score' | 'save' | 'done' | 'error';
+type ScanProgress = {
+  stage: ScanStage;
+  label: string;
+  detail?: string;
+  percent: number;
+  current?: number;
+  total?: number;
+  shareUrl?: string;
+  error?: string;
+};
+type AnalyzeOpts = {
+  maxUrls?: number;
+  maxDeep?: number;
+  discoveryBudgetMs?: number;
+  onProgress?: (event: ScanProgress) => Promise<void> | void;
+};
+
+class DiscoveryBudgetError extends Error {
+  constructor() {
+    super('Anonymous sitemap discovery reached its time limit.');
+    this.name = 'DiscoveryBudgetError';
+  }
+}
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -55,7 +82,7 @@ export default {
       console.error('saas_error', { message: messageOf(error) });
     }
 
-    if (path === '/api/analyze' || path === '/api/report' || path === '/api/csv' || path === '/api/agent-pack' || path === '/api/pack') {
+    if (path === '/api/analyze' || path === '/api/report' || path === '/api/scan' || path === '/api/csv' || path === '/api/agent-pack' || path === '/api/pack') {
       const limited = await enforceAnonymousRateLimit(request, env);
       if (limited) return limited;
     }
@@ -78,6 +105,7 @@ export default {
     // APIs
     if (path === '/api/stats') return json(await readStats(env));
     if (path === '/api/analyze') return handleAnalyze(url, env);
+    if (path === '/api/scan') return handleScanStream(url, env);
     if (path === '/api/report') return handleReport(url, env, request);
     if (path === '/api/csv') return handleCsv(url, env);
     if (path === '/api/agent-pack') return handleAgentPack(url, env);
@@ -166,6 +194,68 @@ async function handleShare(
   return html(errorHtml('Not found', 'Unknown share path.'), 404);
 }
 
+async function handleScanStream(url: URL, env: Env): Promise<Response> {
+  const site = url.searchParams.get('site') || '';
+  if (!site.trim()) return json({ error: 'Missing site parameter.' }, 400);
+
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
+  const encoder = new TextEncoder();
+  const send = async (event: ScanProgress) => {
+    await writer.write(encoder.encode(`${JSON.stringify(event)}\n`));
+  };
+
+  void (async () => {
+    try {
+      const result = await analyze(site, {
+        discoveryBudgetMs: ANONYMOUS_DISCOVERY_BUDGET_MS,
+        onProgress: send,
+      });
+      await send({
+        stage: 'save',
+        label: 'Saving snapshot',
+        detail: `${result.source.discoveredUrlCount.toLocaleString()} URLs · ${result.stats.errors} errors`,
+        percent: 96,
+      });
+      await incrementStats(env, result.source.discoveredUrlCount);
+      const stored = await saveReport(env.SITEMAPPER_STATS, result);
+      if (!stored) {
+        await send({ stage: 'error', label: 'Survey finished but the snapshot could not be stored.', percent: 96, error: 'Snapshot store failed.' });
+        return;
+      }
+      await send({
+        stage: 'done',
+        label: 'Report ready',
+        detail: result.site,
+        percent: 100,
+        shareUrl: `/r/${stored.id}`,
+      });
+    } catch (error) {
+      const message = error instanceof SsrfError ? error.message : messageOf(error);
+      try {
+        await send({ stage: 'error', label: 'Survey stopped', detail: message, percent: 0, error: message });
+      } catch {
+        /* client gone */
+      }
+    } finally {
+      try {
+        await writer.close();
+      } catch {
+        /* already closed */
+      }
+    }
+  })();
+
+  return new Response(readable, {
+    headers: {
+      'content-type': 'application/x-ndjson; charset=utf-8',
+      'cache-control': 'no-store',
+      'x-content-type-options': 'nosniff',
+      'access-control-allow-origin': '*',
+    },
+  });
+}
+
 async function handleAnalyze(url: URL, env: Env): Promise<Response> {
   try {
     const id = url.searchParams.get('id') || '';
@@ -176,7 +266,7 @@ async function handleAnalyze(url: URL, env: Env): Promise<Response> {
     }
     const site = url.searchParams.get('site') || '';
     if (!site.trim()) return json({ error: 'Missing site parameter (or id for a saved survey).' }, 400);
-    const result = await analyze(site);
+    const result = await analyze(site, { discoveryBudgetMs: ANONYMOUS_DISCOVERY_BUDGET_MS });
     await incrementStats(env, result.source.discoveredUrlCount);
     const stored = await saveReport(env.SITEMAPPER_STATS, result);
     return json(
@@ -208,7 +298,7 @@ async function handleReport(url: URL, env: Env, request: Request): Promise<Respo
     if (!site.trim()) {
       return html(errorHtml('Missing site', 'Enter a website URL or direct sitemap URL.'), 400);
     }
-    const result = await analyze(site);
+    const result = await analyze(site, { discoveryBudgetMs: ANONYMOUS_DISCOVERY_BUDGET_MS });
     await incrementStats(env, result.source.discoveredUrlCount);
     const stored = await saveReport(env.SITEMAPPER_STATS, result);
     if (stored) {
@@ -291,7 +381,7 @@ async function resolveResult(
   }
   const site = url.searchParams.get('site') || '';
   if (!site.trim()) return { ok: false, status: 400, error: 'Missing site or id parameter.' };
-  const data = await analyze(site);
+  const data = await analyze(site, { discoveryBudgetMs: ANONYMOUS_DISCOVERY_BUDGET_MS });
   if (countNewSurvey) await incrementStats(env, data.source.discoveredUrlCount);
   const stored = await saveReport(env.SITEMAPPER_STATS, data);
   return { ok: true, data, shareId: stored?.id, stored: stored || undefined };
@@ -344,52 +434,116 @@ function redirect(location: string, status = 302): Response {
   });
 }
 
-async function analyze(input: string): Promise<Result> {
+export async function analyze(input: string, opts: AnalyzeOpts = {}): Promise<Result> {
+  const maxUrls = opts.maxUrls ?? MAX_URLS;
+  const maxDeep = opts.maxDeep ?? MAX_DEEP;
+  const discoveryDeadline = opts.discoveryBudgetMs
+    ? Date.now() + Math.max(1, opts.discoveryBudgetMs)
+    : undefined;
+  const progress = async (event: ScanProgress) => {
+    await opts.onProgress?.(event);
+  };
   assertPublicHttpUrl(/^https?:\/\//i.test(input.trim()) ? input.trim() : `https://${input.trim()}`);
   const target = normalizeInput(input);
-  const candidates = await discoverCandidates(target);
+  await progress({
+    stage: 'start',
+    label: 'Starting survey',
+    detail: safeHost(target.site),
+    percent: 4,
+  });
   let bestLoad: Awaited<ReturnType<typeof loadSitemaps>> | undefined;
   let bestSource: Candidate | undefined;
+  let discoveryWasInconclusive = false;
 
-  for (const candidate of candidates) {
-    const loaded = await loadSitemaps(candidate.site, candidate.sitemapUrls);
+  for await (const candidate of discoverCandidates(target, progress, discoveryDeadline)) {
+    await progress({
+      stage: 'sitemaps',
+      label: 'Loading XML sitemaps',
+      detail: candidate.sitemapUrls[0] || candidate.site,
+      percent: 16,
+    });
+    const loaded = await loadSitemaps(
+      candidate.site,
+      candidate.sitemapUrls,
+      maxUrls,
+      progress,
+      discoveryDeadline
+    );
+    if (candidate.discoveryInconclusive && loaded.entries.length === 0) loaded.inconclusive = true;
+    discoveryWasInconclusive ||= loaded.inconclusive;
     candidate.testedUrls.push(...loaded.loaded, ...loaded.failed);
     candidate.failures.push(...loaded.failures);
     if (
       !bestLoad ||
       loaded.entries.length > bestLoad.entries.length ||
-      (loaded.loaded.length > 0 && bestLoad.loaded.length === 0)
+      (loaded.loaded.length > 0 && bestLoad.loaded.length === 0) ||
+      (bestLoad.inconclusive && !loaded.inconclusive)
     ) {
       bestLoad = loaded;
       bestSource = candidate;
     }
     if (loaded.entries.length > 0) break;
+    if (loaded.budgetExceeded) break;
   }
 
   if (!bestLoad || !bestSource) throw new Error('No discovery candidate was produced.');
+  if (bestLoad.entries.length === 0 && discoveryWasInconclusive) bestLoad.inconclusive = true;
 
-  const issues = rootIssues(bestSource, bestLoad);
-  const deepPages = await inspectPages(bestLoad.entries.slice(0, MAX_DEEP));
+  const issues = rootIssues(bestSource, bestLoad, maxUrls, maxDeep);
+  const sample = bestLoad.entries.slice(0, maxDeep);
+  await progress({
+    stage: 'pages',
+    label: sample.length ? 'Checking live pages' : 'No URLs to deep-check',
+    detail: sample.length ? `0 / ${sample.length} sampled` : bestSource.site,
+    percent: 44,
+    current: 0,
+    total: sample.length,
+  });
+  const deepPages = maxDeep > 0 ? await inspectPages(sample, progress) : [];
+  await progress({
+    stage: 'score',
+    label: 'Scoring indexability',
+    detail: `${bestLoad.entries.length.toLocaleString()} declared · ${deepPages.length} live-checked`,
+    percent: 92,
+  });
   addDuplicateMetadataIssues(deepPages);
-  const pages = [...deepPages, ...bestLoad.entries.slice(MAX_DEEP).map(indexOnlyPage)];
-  applyRobotsConflicts(pages, bestSource.rules, issues);
+  const declaredEntries = new Map(bestLoad.entries.map((entry) => [normalizeUrl(entry.url), entry]));
+  const journeyPages = bestLoad.inconclusive
+    ? []
+    : await probeCriticalJourneys(bestSource.site, new Set(deepPages.map((page) => page.url)), declaredEntries);
+  const extraUrls = new Set(journeyPages.map((page) => page.url));
+  const pages = [
+    ...deepPages,
+    ...journeyPages,
+    ...bestLoad.entries.slice(maxDeep).filter((entry) => !extraUrls.has(entry.url)).map(inventoryOnlyPage),
+  ];
+  const inventoryPages = pages.filter((page) => page.sitemapListed !== false);
+  applyRobotsConflicts(inventoryPages, bestSource.rules, issues);
   const allIssues = [...issues, ...pages.flatMap((page) => page.issues)];
-  const stats = summarize(pages, allIssues);
+  const stats = summarize(inventoryPages, allIssues);
   bestSource.discoveredUrlCount = bestLoad.entries.length;
-  bestSource.deepCheckedCount = deepPages.length;
-  bestSource.compatibility = compatibilityVerdict(
-    bestLoad.entries.length,
-    bestLoad.loaded.length,
-    bestLoad.failed.length,
-    deepPages.filter((page) => page.issues.some((issue) => issue.severity === 'error')).length
-  );
-  const { site, rules: _rules, ...safeSource } = bestSource;
+  bestSource.deepCheckedCount = deepPages.length + journeyPages.length;
+  bestSource.compatibility = bestLoad.inconclusive
+    ? 'Inconclusive: sitemap discovery timed out before availability could be determined.'
+    : compatibilityVerdict(
+        bestLoad.entries.length,
+        bestLoad.loaded.length,
+        bestLoad.failed.length,
+        deepPages.filter((page) => page.issues.some((issue) => issue.severity === 'error')).length
+      );
+  const { site, rules: _rules, discoveryInconclusive: _discoveryInconclusive, ...safeSource } = bestSource;
   void _rules;
+  void _discoveryInconclusive;
 
-  const scores = score(deepPages, issues, pages);
+  const scores = score(
+    [...deepPages, ...journeyPages],
+    issues,
+    inventoryPages,
+    bestLoad.entries.length > 0 && !bestLoad.inconclusive
+  );
   const insights = buildInsights(
     site,
-    pages.map((p) => ({
+    inventoryPages.map((p) => ({
       url: p.url,
       path: p.path,
       type: p.type,
@@ -419,19 +573,32 @@ async function analyze(input: string): Promise<Result> {
   };
 }
 
-function rootIssues(source: Candidate, loaded: Awaited<ReturnType<typeof loadSitemaps>>): Issue[] {
+function rootIssues(
+  source: Candidate,
+  loaded: Awaited<ReturnType<typeof loadSitemaps>>,
+  maxUrls = MAX_URLS,
+  maxDeep = MAX_DEEP
+): Issue[] {
   const issues: Issue[] = [];
   const count = loaded.entries.length;
   if (!source.discoveredFromRobots && source.inputMode === 'site') {
     issues.push(
       note(
         'ROBOTS_NO_USABLE_SITEMAP_REFERENCE',
-        'robots.txt did not expose a usable XML Sitemap directive; common sitemap paths and host variants were tried.',
+        'robots.txt did not expose a usable XML Sitemap directive; Sitemapper attempted common paths and, when time allowed, a host variant.',
         source.robotsUrl
       )
     );
   }
-  if (count === 0 && loaded.loaded.length > 0) {
+  if (count === 0 && loaded.inconclusive) {
+    issues.push(
+      note(
+        'SCAN_INCONCLUSIVE',
+        'Sitemap discovery timed out before Sitemapper could determine whether a usable sitemap is available. No sitemap outage is asserted from this scan.',
+        loaded.failures.slice(0, 5).join(' | ') || source.sitemapUrls.join(', ')
+      )
+    );
+  } else if (count === 0 && loaded.loaded.length > 0) {
     issues.push(
       errorIssue(
         'SITEMAPS_FOUND_BUT_UNUSABLE',
@@ -440,7 +607,7 @@ function rootIssues(source: Candidate, loaded: Awaited<ReturnType<typeof loadSit
       )
     );
   }
-  if (count === 0 && loaded.loaded.length === 0) {
+  if (count === 0 && loaded.loaded.length === 0 && !loaded.inconclusive) {
     issues.push(errorIssue('NO_ACCESSIBLE_SITEMAP', 'No accessible XML sitemap could be loaded.', source.sitemapUrls.join(', ')));
   }
   if (count === 1) {
@@ -454,26 +621,30 @@ function rootIssues(source: Candidate, loaded: Awaited<ReturnType<typeof loadSit
   } else if (count > 1 && count < 5) {
     issues.push(warning('THIN_SITEMAP', `Only ${count} URLs were found in the sitemap inventory.`, `count=${count}`));
   }
-  if (count >= MAX_URLS) {
+  if (count >= maxUrls) {
     issues.push(
       note(
         'URL_INDEX_LIMIT_REACHED',
-        `Live Worker preview indexed the first ${MAX_URLS.toLocaleString()} URLs. Use the CLI or future queue mode for a full export.`,
-        `MAX_URLS=${MAX_URLS}`
+        `Added the first ${maxUrls.toLocaleString()} sitemap URLs to this crawl's inventory. The source sitemap may contain more; live checks remain sampled.`,
+        `MAX_URLS=${maxUrls}`
       )
     );
   }
-  if (count > MAX_DEEP) {
+  if (count > maxDeep) {
     issues.push(
       note(
         'DEEP_CHECK_LIMIT_REACHED',
-        `Live Worker preview deep checked ${MAX_DEEP.toLocaleString()} pages and kept the rest as index-only rows.`,
-        `MAX_DEEP=${MAX_DEEP}`
+        `Live checked ${maxDeep.toLocaleString()} pages and kept the remaining sitemap URLs as inventory-only rows.`,
+        `MAX_DEEP=${maxDeep}`
       )
     );
   }
   for (const failed of loaded.failed.slice(0, 25)) {
-    issues.push(warning('SITEMAP_FETCH_FAILED', `Could not load sitemap: ${failed}`, failed));
+    issues.push(
+      loaded.inconclusive
+        ? note('DISCOVERY_ATTEMPT_INCONCLUSIVE', `Could not finish checking sitemap: ${failed}`, failed)
+        : warning('SITEMAP_FETCH_FAILED', `Could not load sitemap: ${failed}`, failed)
+    );
   }
   for (const failure of loaded.failures.slice(0, 25)) {
     issues.push(note('DISCOVERY_NOTE', failure, failure));
@@ -481,26 +652,53 @@ function rootIssues(source: Candidate, loaded: Awaited<ReturnType<typeof loadSit
   return issues;
 }
 
-async function discoverCandidates(target: {
-  input: string;
-  site: string;
-  mode: 'site' | 'sitemap';
-}): Promise<Candidate[]> {
+async function* discoverCandidates(
+  target: {
+    input: string;
+    site: string;
+    mode: 'site' | 'sitemap';
+  },
+  progress?: (event: ScanProgress) => Promise<void>,
+  discoveryDeadline?: number
+): AsyncGenerator<Candidate> {
   if (target.mode === 'sitemap') {
     const origin = new URL(target.input).origin;
-    return [
-      makeCandidate(origin, `${origin}/robots.txt`, [target.input], false, 'sitemap', ['Direct sitemap input.'], parseRobots('')),
-    ];
+    await progress?.({
+      stage: 'robots',
+      label: 'Using a direct sitemap URL',
+      detail: target.input,
+      percent: 12,
+    });
+    yield makeCandidate(
+      origin,
+      `${origin}/robots.txt`,
+      [target.input],
+      false,
+      'sitemap',
+      ['Direct sitemap input.'],
+      parseRobots('')
+    );
+    return;
   }
 
-  const out: Candidate[] = [];
-  for (const site of candidateOrigins(target.site)) {
+  const origins = candidateOrigins(target.site);
+  let originIndex = 0;
+  for (const site of origins) {
+    originIndex += 1;
     const origin = new URL(site).origin;
     const robotsUrl = `${origin}/robots.txt`;
+    await progress?.({
+      stage: 'robots',
+      label: 'Reading robots.txt',
+      detail: robotsUrl,
+      percent: 8 + Math.round((originIndex / Math.max(origins.length, 1)) * 6),
+    });
     const failures: string[] = [];
     let rules = parseRobots('');
+    let discoveryInconclusive = false;
+    let budgetExceeded = false;
     try {
-      const robots = await fetchText(robotsUrl);
+      const robots = await fetchText(robotsUrl, discoveryDeadline);
       rules = parseRobots(robots.text);
       const extracted = sitemapsFromRobots(robots.text);
       for (const ignored of extracted.ignored.slice(0, 10)) {
@@ -508,16 +706,20 @@ async function discoverCandidates(target: {
       }
       const usable = extracted.urls.filter((item) => sameHost(item, site));
       if (usable.length) {
-        out.push(makeCandidate(site, robotsUrl, usable, true, 'site', failures, rules));
+        yield makeCandidate(site, robotsUrl, usable, true, 'site', failures, rules);
         continue;
       }
       failures.push(`${robotsUrl} loaded but did not expose usable same-host XML Sitemap directives.`);
     } catch (error) {
+      discoveryInconclusive = isTimeoutLike(error);
+      budgetExceeded = error instanceof DiscoveryBudgetError;
       failures.push(`${robotsUrl} failed: ${messageOf(error)}`);
     }
-    out.push(makeCandidate(site, robotsUrl, commonSitemaps(origin), false, 'site', failures, rules));
+    const candidate = makeCandidate(site, robotsUrl, commonSitemaps(origin), false, 'site', failures, rules);
+    candidate.discoveryInconclusive = discoveryInconclusive;
+    yield candidate;
+    if (budgetExceeded) return;
   }
-  return out;
 }
 
 function makeCandidate(
@@ -567,77 +769,186 @@ function applyRobotsConflicts(pages: Page[], rules: RobotsRules, issues: Issue[]
 
 async function loadSitemaps(
   site: string,
-  startUrls: string[]
-): Promise<{ entries: Entry[]; loaded: string[]; failed: string[]; failures: string[] }> {
-  const queue = startUrls.filter(isSitemapUrl).map(normalizeUrl);
+  startUrls: string[],
+  maxUrls = MAX_URLS,
+  progress?: (event: ScanProgress) => Promise<void>,
+  discoveryDeadline?: number
+): Promise<{
+  entries: Entry[];
+  loaded: string[];
+  failed: string[];
+  failures: string[];
+  inconclusive: boolean;
+  budgetExceeded: boolean;
+}> {
+  type QueueItem = { url: string; kind: 'seed' | 'child' };
+  let queue: QueueItem[] = [...new Set(startUrls.filter(isSitemapUrl).map(normalizeUrl))].map((url) => ({
+    url,
+    kind: 'seed',
+  }));
   const seen = new Set<string>();
   const entries = new Map<string, Entry>();
   const loaded: string[] = [];
   const failed: string[] = [];
   const failures: string[] = [];
+  let timeoutFailures = 0;
+  let blockedResponses = 0;
+  let budgetExceeded = false;
+  let progressPercent = 16;
 
-  while (queue.length && seen.size < MAX_SITEMAPS && entries.size < MAX_URLS) {
-    const sitemap = queue.shift()!;
+  const nextPercent = (value: number): number => {
+    progressPercent = Math.max(progressPercent, Math.min(42, value));
+    return progressPercent;
+  };
+
+  const enqueueChild = (input: string): boolean => {
+    const url = normalizeUrl(input);
+    if (seen.has(url)) return false;
+    const queued = queue.find((item) => item.url === url);
+    if (queued) {
+      const promoted = queued.kind === 'seed';
+      queued.kind = 'child';
+      return promoted;
+    }
+    queue.push({ url, kind: 'child' });
+    return true;
+  };
+
+  while (queue.length && seen.size < MAX_SITEMAPS && entries.size < maxUrls) {
+    const item = queue.shift()!;
+    const sitemap = item.url;
     if (seen.has(sitemap)) continue;
+    if (discoveryDeadline && Date.now() >= discoveryDeadline) {
+      budgetExceeded = true;
+      failures.push('Anonymous sitemap discovery reached its 40 second time limit before all candidates were checked.');
+      break;
+    }
+
+    const completedBefore = loaded.length + failed.length;
+    const attemptTotal = Math.max(completedBefore + queue.length + 1, 1);
+    await progress?.({
+      stage: 'sitemaps',
+      label: `Checking sitemap ${completedBefore + 1} of ${attemptTotal}`,
+      detail: sitemap,
+      percent: nextPercent(16 + Math.round((26 * completedBefore) / attemptTotal)),
+      current: entries.size,
+      total: maxUrls,
+    });
+
     seen.add(sitemap);
     try {
-      const response = await fetchText(sitemap);
-      loaded.push(sitemap);
-      if (looksBlocked(response.status, response.text)) {
-        failures.push(`${sitemap} looks blocked or challenged by bot protection.`);
-      }
-      let added = 0;
+      const response = await fetchText(sitemap, discoveryDeadline);
+      const blocked = looksBlocked(response.status, response.text);
+      if (blocked) blockedResponses += 1;
+      if (response.status < 200 || response.status >= 300) {
+        failed.push(sitemap);
+        failures.push(`${sitemap} returned HTTP ${response.status}.`);
+        if (blocked) {
+          failures.push(`${sitemap} looks blocked or challenged by bot protection.`);
+        }
+      } else {
+        loaded.push(sitemap);
+        if (blocked) {
+          failures.push(`${sitemap} looks blocked or challenged by bot protection.`);
+        }
+        let added = 0;
+        let queuedChild = false;
+        const entriesBefore = entries.size;
 
-      try {
-        const xml = parser.parse(response.text) as any;
-        for (const child of asArray(xml?.sitemapindex?.sitemap)) {
-          const loc = textValue(child?.loc);
-          if (loc && isSitemapUrl(loc) && sameHost(loc, site) && !seen.has(normalizeUrl(loc))) {
-            queue.push(normalizeUrl(loc));
-            added += 1;
+        try {
+          const xml = parser.parse(response.text) as any;
+          for (const child of asArray(xml?.sitemapindex?.sitemap)) {
+            const loc = textValue(child?.loc);
+            if (loc && isSitemapUrl(loc) && sameHost(loc, site) && enqueueChild(loc)) {
+              queuedChild = true;
+              added += 1;
+            }
           }
-        }
-        for (const item of asArray(xml?.urlset?.url)) {
-          const loc = textValue(item?.loc);
-          if (loc && sameHost(loc, site)) {
-            addEntry(entries, loc, textValue(item?.lastmod));
-            added += 1;
+          for (const entry of asArray(xml?.urlset?.url)) {
+            const loc = textValue(entry?.loc);
+            if (loc && sameHost(loc, site)) {
+              const before = entries.size;
+              addEntry(entries, loc, textValue(entry?.lastmod));
+              if (entries.size > before) added += 1;
+            }
+            if (entries.size >= maxUrls) break;
           }
-          if (entries.size >= MAX_URLS) break;
+        } catch (error) {
+          failures.push(`${sitemap} XML parser fallback used: ${messageOf(error)}`);
         }
-      } catch (error) {
-        failures.push(`${sitemap} XML parser fallback used: ${messageOf(error)}`);
-      }
 
-      for (const loc of locTags(response.text)) {
-        if (!sameHost(loc, site)) continue;
-        if (isSitemapUrl(loc) && !seen.has(normalizeUrl(loc))) {
-          queue.push(normalizeUrl(loc));
-          added += 1;
-        } else if (isPageUrl(loc)) {
-          addEntry(entries, loc, lastmodNear(response.text, loc));
-          added += 1;
+        for (const loc of locTags(response.text)) {
+          if (!sameHost(loc, site)) continue;
+          if (isSitemapUrl(loc)) {
+            if (enqueueChild(loc)) {
+              queuedChild = true;
+              added += 1;
+            }
+          } else if (isPageUrl(loc)) {
+            const before = entries.size;
+            addEntry(entries, loc, lastmodNear(response.text, loc));
+            if (entries.size > before) added += 1;
+          }
+          if (entries.size >= maxUrls) break;
         }
-        if (entries.size >= MAX_URLS) break;
-      }
 
-      if (added === 0) failures.push(`${sitemap} loaded but produced 0 same-host sitemap children or URL entries.`);
+        if (added === 0) {
+          failures.push(`${sitemap} loaded but produced 0 same-host sitemap children or URL entries.`);
+        }
+
+        // Once a speculative root path proves usable, do not probe the other
+        // common root paths. Child sitemap files remain queued and are walked.
+        if (item.kind === 'seed' && (queuedChild || entries.size > entriesBefore)) {
+          queue = queue.filter((queued) => queued.kind === 'child');
+        }
+      }
     } catch (error) {
       failed.push(sitemap);
       failures.push(`${sitemap} failed: ${messageOf(error)}`);
+      if (error instanceof DiscoveryBudgetError) budgetExceeded = true;
+      if (isTimeoutLike(error)) timeoutFailures += 1;
     }
+
+    const remaining = queue.filter((queued) => !seen.has(queued.url)).length;
+    const done = loaded.length + failed.length;
+    const denom = Math.max(done + remaining, 1);
+    const pendingChildren = queue.some((queued) => queued.kind === 'child' && !seen.has(queued.url));
+    const pendingSeeds = queue.some((queued) => queued.kind === 'seed' && !seen.has(queued.url));
+    await progress?.({
+      stage: 'sitemaps',
+      label: budgetExceeded
+        ? 'Sitemap discovery time limit reached'
+        : pendingChildren
+          ? 'Walking sitemap index'
+          : pendingSeeds
+            ? 'Trying another sitemap path'
+            : 'Sitemap inventory ready',
+      detail: `${loaded.length} file${loaded.length === 1 ? '' : 's'} · ${entries.size.toLocaleString()} URLs`,
+      percent: nextPercent(16 + Math.round((26 * done) / denom)),
+      current: entries.size,
+      total: maxUrls,
+    });
+    if (budgetExceeded) break;
   }
+
+  const inconclusive = entries.size === 0 && (budgetExceeded || timeoutFailures > 0 || blockedResponses > 0);
 
   return {
     entries: [...entries.values()].sort((a, b) => a.url.localeCompare(b.url)),
     loaded,
     failed,
     failures,
+    inconclusive,
+    budgetExceeded,
   };
 }
 
-async function inspectPages(entries: Entry[]): Promise<Page[]> {
+async function inspectPages(
+  entries: Entry[],
+  progress?: (event: ScanProgress) => Promise<void>
+): Promise<Page[]> {
   const pages: Page[] = [];
+  const total = entries.length;
   for (let i = 0; i < entries.length; i += FETCH_BATCH) {
     const batch = entries.slice(i, i + FETCH_BATCH);
     pages.push(
@@ -657,8 +968,43 @@ async function inspectPages(entries: Entry[]): Promise<Page[]> {
         })
       ))
     );
+    await progress?.({
+      stage: 'pages',
+      label: pages.length >= total ? 'Live sample complete' : 'Checking live pages',
+      detail: `${pages.length} / ${total} sampled`,
+      percent: 44 + Math.round((46 * pages.length) / Math.max(total, 1)),
+      current: pages.length,
+      total,
+    });
   }
   return pages;
+}
+
+async function probeCriticalJourneys(
+  site: string,
+  already: Set<string>,
+  declaredEntries: Map<string, Entry>
+): Promise<Page[]> {
+  const origin = new URL(/^https?:\/\//i.test(site) ? site : `https://${site}`).origin;
+  const out: Page[] = [];
+  for (const href of criticalJourneyHrefs(origin)) {
+    const declaredEntry = declaredEntries.get(normalizeUrl(href));
+    if (!declaredEntry) continue;
+    if (already.has(href) || already.has(href.replace(/\/+$/, '')) || already.has(`${href}/`)) continue;
+    try {
+      assertPublicHttpUrl(href);
+      const response = await fetchChain(href);
+      const page = deepPage(declaredEntry, response.status, response.finalUrl, response.text, response.contentType, {
+        hops: response.hops,
+        loop: response.loop,
+      });
+      out.push(page);
+      already.add(href);
+    } catch {
+      /* skip missing or blocked journeys */
+    }
+  }
+  return out;
 }
 
 function deepPage(
@@ -785,14 +1131,15 @@ function basePage(entry: Entry, deepChecked: boolean): Page {
     type: pageType(entry.url),
     section: section(entry.url),
     deepChecked,
+    sitemapListed: true,
     issues: [],
   };
 }
 
-function indexOnlyPage(entry: Entry): Page {
+function inventoryOnlyPage(entry: Entry): Page {
   const page = basePage(entry, false);
   page.issues.push(
-    note('INDEX_ONLY_NOT_FETCHED', 'URL was indexed from sitemap but not deep-fetched in this Worker preview.', entry.url)
+    note('INDEX_ONLY_NOT_FETCHED', 'URL was found in the sitemap but not live-checked in this Worker preview.', entry.url)
   );
   return page;
 }
@@ -805,7 +1152,7 @@ function addDuplicateMetadataIssues(pages: Page[]): void {
     if (group.length > 1) {
       for (const page of group) {
         page.issues.push(
-          warning('DUPLICATE_TITLE', 'Title is duplicated on another indexed page.', page.title || '')
+          warning('DUPLICATE_TITLE', 'Title is duplicated on another live-checked page.', page.title || '')
         );
       }
     }
@@ -817,7 +1164,7 @@ function addDuplicateMetadataIssues(pages: Page[]): void {
     if (group.length > 1) {
       for (const page of group) {
         page.issues.push(
-          note('DUPLICATE_META_DESCRIPTION', 'Meta description is duplicated on another indexed page.', page.description || '')
+          note('DUPLICATE_META_DESCRIPTION', 'Meta description is duplicated on another live-checked page.', page.description || '')
         );
       }
     }
@@ -834,7 +1181,15 @@ function summarize(pages: Page[], issues: Issue[]): Result['stats'] {
   };
 }
 
-function score(deepPages: Page[], rootIssues: Issue[], allPages: Page[]): Result['scores'] {
+function score(
+  deepPages: Page[],
+  rootIssues: Issue[],
+  allPages: Page[],
+  evidenceAvailable = deepPages.length > 0 || allPages.length > 0
+): Result['scores'] {
+  if (!evidenceAvailable || (deepPages.length === 0 && allPages.length === 0)) {
+    return { index: 0, seo: 0, sitemap: 0, available: false };
+  }
   const all = [...rootIssues, ...deepPages.flatMap((page) => page.issues)];
   const totalDeep = Math.max(deepPages.length, 1);
   const totalAll = Math.max(allPages.length, 1);
@@ -857,23 +1212,37 @@ function compatibilityVerdict(entries: number, loaded: number, failed: number, d
   if (entries === 0 && loaded > 0) return 'Sitemap references were found, but no usable URL entries could be extracted.';
   if (entries === 0) return 'Not compatible yet: no accessible XML sitemap URLs were found.';
   if (entries === 1) return 'Single-page sitemap detected: metadata is available, but the sitemap only exposes one URL.';
-  if (entries > 1 && entries < 5) return `Thin sitemap detected: only ${entries} URLs were indexed.`;
+  if (entries > 1 && entries < 5) return `Thin sitemap detected: only ${entries} sitemap URLs were found.`;
   if (deepErrors > Math.max(10, entries * 0.5)) {
-    return 'Partially compatible: sitemap URLs were indexed, but many sampled pages could not be fetched.';
+    return 'Partially compatible: sitemap URLs were found, but many sampled pages could not be fetched.';
   }
-  if (failed > 0) return 'Mostly compatible: some sitemap files failed, but usable URLs were indexed.';
-  return 'Compatible: sitemap URLs were indexed and sampled page metadata was accessible.';
+  if (failed > 0) return 'Mostly compatible: some sitemap files failed, but usable sitemap URL entries were found.';
+  return 'Compatible: sitemap URLs were found and sampled page metadata was accessible.';
 }
 
-async function fetchText(url: string): Promise<{ status: number; url: string; text: string; contentType: string }> {
+async function fetchText(
+  url: string,
+  discoveryDeadline?: number
+): Promise<{ status: number; url: string; text: string; contentType: string }> {
   const parsed = assertPublicHttpUrl(url);
+  let remaining = discoveryDeadline ? discoveryDeadline - Date.now() : undefined;
+  if (remaining !== undefined && remaining <= 0) throw new DiscoveryBudgetError();
   try {
-    await resolveAndAssertPublic(parsed.hostname);
+    await resolveAndAssertPublic(
+      parsed.hostname,
+      fetch,
+      remaining === undefined ? undefined : Math.max(1, Math.min(1_500, remaining))
+    );
   } catch (error) {
     if (error instanceof SsrfError) throw error;
   }
+
+  remaining = discoveryDeadline ? discoveryDeadline - Date.now() : undefined;
+  if (remaining !== undefined && remaining <= 0) throw new DiscoveryBudgetError();
+  const timeoutMs = remaining === undefined ? TIMEOUT_MS : Math.max(1, Math.min(TIMEOUT_MS, remaining));
+  const budgetLimited = remaining !== undefined && remaining <= TIMEOUT_MS;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(parsed.toString(), {
       redirect: 'follow',
@@ -890,6 +1259,9 @@ async function fetchText(url: string): Promise<{ status: number; url: string; te
       text: await readLimitedBody(response),
       contentType: response.headers.get('content-type') || '',
     };
+  } catch (error) {
+    if (budgetLimited && isTimeoutLike(error)) throw new DiscoveryBudgetError();
+    throw error;
   } finally {
     clearTimeout(timer);
   }
@@ -1181,6 +1553,15 @@ function decodeXml(value: string): string {
 }
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : 'Unknown error';
+}
+function isTimeoutLike(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return (
+    error instanceof DiscoveryBudgetError ||
+    error.name === 'AbortError' ||
+    error.name === 'TimeoutError' ||
+    /abort|timed?\s*out|time\s*limit|deadline/i.test(error.message)
+  );
 }
 function clamp(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));

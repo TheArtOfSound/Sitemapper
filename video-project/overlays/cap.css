@@ -1,0 +1,11 @@
+html,body{margin:0;width:1920px;height:1080px;background:transparent;overflow:hidden}
+.cap{
+  position:absolute;left:72px;bottom:56px;
+  background:rgba(17,19,24,.82);
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:16px;padding:16px 22px 18px;max-width:920px;
+  font-family:"IBM Plex Sans",system-ui,sans-serif;color:#fff;
+}
+.k{display:block;color:#8ea2ff;letter-spacing:.16em;text-transform:uppercase;font:600 13px/1 "IBM Plex Sans"}
+b{display:block;margin-top:8px;font:600 34px/1.15 "Source Serif 4",Georgia,serif;letter-spacing:-.02em}
+.bad b{color:#ffd7df}

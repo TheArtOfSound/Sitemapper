@@ -5,6 +5,16 @@ import type { Result } from '../render.js';
 import type { SessionUser } from './auth.js';
 import { newId, nowIso, periodMonth, type Env } from './env.js';
 
+export const ISSUE_UPSERT_SQL = `INSERT INTO issues (id, project_id, code, severity, first_seen_at, last_seen_at, occurrence_count, affected_urls, evidence)
+VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+ON CONFLICT(project_id, code) DO UPDATE SET
+  severity = excluded.severity,
+  last_seen_at = excluded.last_seen_at,
+  resolved_at = NULL,
+  occurrence_count = issues.occurrence_count + 1,
+  affected_urls = excluded.affected_urls,
+  evidence = excluded.evidence`;
+
 export function resultToSnapshot(result: Result, sitemapHashes: Record<string, string> = {}): CrawlSnapshot {
   const urls: UrlState[] = result.pages.map((page) => ({
     url: page.url,
@@ -16,7 +26,7 @@ export function resultToSnapshot(result: Result, sitemapHashes: Record<string, s
     noindex: page.issues.some((issue) => issue.code === 'NOINDEX_IN_SITEMAP'),
     robotsAllowed: !page.issues.some((issue) => issue.code === 'ROBOTS_DISALLOWED_IN_SITEMAP'),
     deepChecked: page.deepChecked,
-    sitemapSource: result.source.sitemapUrls[0],
+    sitemapSource: page.sitemapListed === false ? undefined : result.source.sitemapUrls[0],
   }));
   return {
     site: result.site,
@@ -25,7 +35,13 @@ export function resultToSnapshot(result: Result, sitemapHashes: Record<string, s
     sitemapHashes,
     declaredCount: result.source.discoveredUrlCount,
     liveCount: result.pages.filter((page) => page.status && page.status < 400).length,
-    indexableCount: result.pages.filter((page) => page.deepChecked && page.status === 200 && !page.issues.some((issue) => issue.code === 'NOINDEX_IN_SITEMAP')).length,
+    indexableCount: result.pages.filter(
+      (page) =>
+        page.sitemapListed !== false &&
+        page.deepChecked &&
+        page.status === 200 &&
+        !page.issues.some((issue) => issue.code === 'NOINDEX_IN_SITEMAP')
+    ).length,
     urls,
     issues: [
       ...result.issues.map((issue) => ({ code: issue.code, severity: issue.severity, message: issue.message, evidence: issue.evidence })),
@@ -54,6 +70,9 @@ export async function saveSnapshot(
     isBaseline?: boolean;
   }
 ): Promise<{ snapshotId: string; events: ChangeEvent[]; summary: string }> {
+  if (!Number.isFinite(input.snapshot.declaredCount) || input.snapshot.declaredCount < 1) {
+    throw new Error('SCAN_INCONCLUSIVE: refusing to persist a zero-inventory snapshot.');
+  }
   const snapshotId = newId('snap');
   const r2Key = `projects/${input.projectId}/snapshots/${snapshotId}.json`;
   await env.SNAPSHOTS.put(r2Key, JSON.stringify(input.snapshot), {
@@ -61,7 +80,14 @@ export async function saveSnapshot(
   });
 
   const previous = await env.DB.prepare(
-    'SELECT id, r2_key FROM snapshots WHERE project_id = ? ORDER BY generated_at DESC LIMIT 1'
+    `SELECT s.id, s.r2_key
+     FROM snapshots s
+     LEFT JOIN crawl_jobs j ON j.id = s.job_id
+     WHERE s.project_id = ?
+       AND (s.job_id IS NULL OR j.status = 'complete')
+       AND s.declared_urls > 0
+     ORDER BY s.generated_at DESC
+     LIMIT 1`
   )
     .bind(input.projectId)
     .first<{ id: string; r2_key: string }>();
@@ -141,21 +167,11 @@ async function upsertIssues(env: Env, projectId: string, snapshot: CrawlSnapshot
   const open = new Map((existing.results || []).map((row) => [row.code, row.id]));
   const stmts = [];
   for (const [code, row] of grouped) {
-    const id = open.get(code);
-    if (id) {
-      stmts.push(
-        env.DB.prepare(
-          'UPDATE issues SET last_seen_at = ?, occurrence_count = occurrence_count + 1, affected_urls = ?, evidence = ?, severity = ? WHERE id = ?'
-        ).bind(nowIso(), row.urls.size, row.evidence, row.severity, id)
-      );
-      open.delete(code);
-    } else {
-      stmts.push(
-        env.DB.prepare(
-          'INSERT INTO issues (id, project_id, code, severity, first_seen_at, last_seen_at, occurrence_count, affected_urls, evidence) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)'
-        ).bind(newId('iss'), projectId, code, row.severity, nowIso(), nowIso(), row.urls.size, row.evidence)
-      );
-    }
+    const seenAt = nowIso();
+    stmts.push(
+      env.DB.prepare(ISSUE_UPSERT_SQL).bind(newId('iss'), projectId, code, row.severity, seenAt, seenAt, row.urls.size, row.evidence)
+    );
+    open.delete(code);
   }
   for (const id of open.values()) {
     stmts.push(env.DB.prepare('UPDATE issues SET resolved_at = ? WHERE id = ?').bind(nowIso(), id));
@@ -220,7 +236,7 @@ export async function createMonitoredSite(
 export async function enqueueCrawl(env: Env, projectId: string, workspaceId: string, siteUrl: string, kind: 'manual' | 'scheduled' | 'ci'): Promise<string> {
   const jobId = newId('job');
   const period = new Date().toISOString().slice(0, 13);
-  const idempotency = `${projectId}:${kind}:${period}`;
+  const idempotency = kind === 'manual' ? `${projectId}:manual:${jobId}` : `${projectId}:${kind}:${period}`;
   try {
     await env.DB.prepare(
       'INSERT INTO crawl_jobs (id, project_id, workspace_id, kind, status, idempotency_key, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'

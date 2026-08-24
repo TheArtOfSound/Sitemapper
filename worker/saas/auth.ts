@@ -12,6 +12,7 @@ export type SessionUser = {
   workspaceId: string;
   plan: string;
   stripeStatus: string;
+  brandName: string | null;
   entitlements: Entitlements;
 };
 
@@ -21,7 +22,7 @@ export async function readSession(request: Request, env: Env): Promise<SessionUs
   if (!token) return null;
   const id = await sha256Hex(token);
   const row = await env.DB.prepare(
-    `SELECT s.user_id, s.workspace_id, s.expires_at, u.email, u.name, w.plan, w.stripe_status
+    `SELECT s.user_id, s.workspace_id, s.expires_at, u.email, u.name, w.plan, w.stripe_status, w.brand_name
      FROM sessions s
      JOIN users u ON u.id = s.user_id
      JOIN workspaces w ON w.id = s.workspace_id
@@ -36,6 +37,7 @@ export async function readSession(request: Request, env: Env): Promise<SessionUs
       name: string | null;
       plan: string;
       stripe_status: string;
+      brand_name: string | null;
     }>();
   if (!row) return null;
   if (Date.parse(row.expires_at) < Date.now()) return null;
@@ -46,7 +48,11 @@ export async function readSession(request: Request, env: Env): Promise<SessionUs
     workspaceId: row.workspace_id,
     plan: row.plan,
     stripeStatus: row.stripe_status,
-    entitlements: entitlementsFor(row.plan, row.stripe_status),
+    brandName: row.brand_name,
+    entitlements: entitlementsFor(
+      env.OPERATOR_EMAIL && row.email === env.OPERATOR_EMAIL ? 'agency' : row.plan,
+      env.OPERATOR_EMAIL && row.email === env.OPERATOR_EMAIL ? 'active' : row.stripe_status
+    ),
   };
 }
 
@@ -213,7 +219,7 @@ export async function startOAuth(env: Env, request: Request, provider: 'github' 
   dest.searchParams.set('client_id', env.GOOGLE_CLIENT_ID);
   dest.searchParams.set('redirect_uri', redirectUri);
   dest.searchParams.set('response_type', 'code');
-  dest.searchParams.set('scope', 'openid email profile https://www.googleapis.com/auth/webmasters.readonly');
+  dest.searchParams.set('scope', 'openid email profile https://www.googleapis.com/auth/webmasters');
   dest.searchParams.set('access_type', 'offline');
   dest.searchParams.set('include_granted_scopes', 'true');
   dest.searchParams.set('prompt', 'consent');
@@ -288,7 +294,7 @@ export async function finishGoogle(env: Env, request: Request): Promise<Response
     await env.DB.prepare(
       'INSERT INTO gsc_connections (id, workspace_id, user_id, refresh_token_enc, properties_json, created_at) VALUES (?, ?, ?, ?, ?, ?)'
     )
-      .bind(newId('gsc'), ident.workspaceId, ident.userId, tokenJson.refresh_token, '[]', nowIso())
+      .bind(newId('gsc'), ident.workspaceId, ident.userId, JSON.stringify({ refresh_token: tokenJson.refresh_token }), '[]', nowIso())
       .run();
   }
   return finishLogin(env, request, ident.userId, ident.workspaceId, row.next_path || '/app');

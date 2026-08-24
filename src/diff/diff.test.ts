@@ -71,6 +71,29 @@ describe('diffSnapshots', () => {
     expect(events.some((event) => event.code === 'SITEMAP_DISAPPEARED' && event.class === 'critical')).toBe(true);
   });
 
+  it('does not treat a legacy attempted path with zero entries as a disappeared sitemap', () => {
+    const primary = 'https://example.com/sitemap.xml';
+    const emptyCandidate = 'https://example.com/sitemap_index.xml';
+    const previous = snap({
+      sitemapUrls: [primary, emptyCandidate],
+      urls: [url({ url: 'https://example.com/', sitemapSource: primary })],
+      issues: [
+        {
+          code: 'DISCOVERY_NOTE',
+          severity: 'notice',
+          evidence: `${emptyCandidate} loaded but produced 0 same-host sitemap children or URL entries.`,
+        },
+      ],
+    });
+    const next = snap({
+      sitemapUrls: [primary],
+      urls: [url({ url: 'https://example.com/', sitemapSource: primary })],
+    });
+
+    const events = diffSnapshots(previous, next);
+    expect(events.some((event) => event.code === 'SITEMAP_DISAPPEARED')).toBe(false);
+  });
+
   it('treats a large URL-count drop as a critical regression', () => {
     const previous = snap({
       declaredCount: 100,

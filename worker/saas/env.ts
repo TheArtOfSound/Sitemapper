@@ -11,6 +11,9 @@ export type Env = {
   GITHUB_CLIENT_SECRET?: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
+  GSC_CLIENT_ID?: string;
+  GSC_CLIENT_SECRET?: string;
+  GOOGLE_QUOTA_PROJECT?: string;
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
   STRIPE_PRICE_BUILDER_MONTHLY?: string;
@@ -23,6 +26,7 @@ export type Env = {
   RESEND_FROM?: string;
   OORT_SSO_SECRET?: string;
   FLOWS_SSO_SECRET?: string;
+  OPERATOR_EMAIL?: string;
 };
 
 export type CrawlMessage = {

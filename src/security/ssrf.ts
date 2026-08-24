@@ -139,7 +139,22 @@ function intToIpv4(n: number): string {
   return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.');
 }
 
-export async function resolveAndAssertPublic(hostname: string, fetcher: typeof fetch = fetch): Promise<void> {
+const DNS_VALIDATION_TIMEOUT_MS = 1_500;
+
+/**
+ * Resolve a hostname through DNS-over-HTTPS and reject private/special answers.
+ *
+ * DNS is a safety signal, but the resolver is still an external dependency. A
+ * slow resolver must not leave a crawl hanging indefinitely. Callers retain the
+ * existing behavior of treating non-SsrfError lookup failures as inconclusive
+ * DNS validation while explicit private hosts and private DNS answers remain
+ * hard failures.
+ */
+export async function resolveAndAssertPublic(
+  hostname: string,
+  fetcher: typeof fetch = fetch,
+  timeoutMs = DNS_VALIDATION_TIMEOUT_MS
+): Promise<void> {
   if (isIpLiteral(hostname)) {
     if (isPrivateOrSpecialIp(hostname.replace(/^\[|\]$/g, ''))) {
       throw new SsrfError(`Blocked private or special-use address: ${hostname}`);
@@ -149,13 +164,30 @@ export async function resolveAndAssertPublic(hostname: string, fetcher: typeof f
 
   const query = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(hostname)}&type=A`;
   const aaaa = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(hostname)}&type=AAAA`;
-  const [aRes, aaaaRes] = await Promise.all([
-    fetcher(query, { headers: { accept: 'application/dns-json' } }),
-    fetcher(aaaa, { headers: { accept: 'application/dns-json' } }),
-  ]);
-  const answers = [...(await dnsAnswers(aRes)), ...(await dnsAnswers(aaaaRes))];
-  if (answers.length === 0) return;
-  for (const answer of answers) {
+  const controller = new AbortController();
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => {
+      controller.abort();
+      const error = new Error(`DNS validation timed out after ${timeoutMs}ms.`);
+      error.name = 'AbortError';
+      reject(error);
+    }, Math.max(1, timeoutMs));
+  });
+
+  try {
+    const lookup = Promise.all([
+      validateDnsResponse(hostname, fetcher(query, { headers: { accept: 'application/dns-json' }, signal: controller.signal })),
+      validateDnsResponse(hostname, fetcher(aaaa, { headers: { accept: 'application/dns-json' }, signal: controller.signal })),
+    ]);
+    await Promise.race([lookup, deadline]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
+async function validateDnsResponse(hostname: string, response: Promise<Response>): Promise<void> {
+  for (const answer of await dnsAnswers(await response)) {
     if (isPrivateOrSpecialIp(answer)) {
       throw new SsrfError(`DNS for ${hostname} resolved to a blocked address (${answer}).`);
     }

@@ -1,3 +1,4 @@
+import { isHighValue } from './impact.js';
 import type { CrawlSnapshot, UrlState } from './snapshot.js';
 import { urlMap } from './snapshot.js';
 
@@ -13,15 +14,13 @@ export type ChangeEvent = {
   summary: string;
 };
 
-const HIGH_VALUE = new Set(['/', '/pricing', '/index', '/home']);
-
 export function diffSnapshots(previous: CrawlSnapshot, next: CrawlSnapshot): ChangeEvent[] {
   const events: ChangeEvent[] = [];
   const prevUrls = urlMap(previous);
   const nextUrls = urlMap(next);
 
-  const prevSitemaps = new Set(previous.sitemapUrls);
-  const nextSitemaps = new Set(next.sitemapUrls);
+  const prevSitemaps = comparableSitemapUrls(previous);
+  const nextSitemaps = comparableSitemapUrls(next);
 
   for (const url of nextSitemaps) {
     if (!prevSitemaps.has(url)) {
@@ -106,6 +105,25 @@ export function diffSnapshots(previous: CrawlSnapshot, next: CrawlSnapshot): Cha
   }
 
   return collapse(events);
+}
+
+function comparableSitemapUrls(snapshot: CrawlSnapshot): Set<string> {
+  const unusable = new Set<string>();
+  for (const issue of snapshot.issues) {
+    const proof = `${issue.message || ''} ${issue.evidence || ''}`;
+    const explicitlyUnusable =
+      issue.code === 'SITEMAP_FETCH_FAILED' ||
+      issue.code === 'DISCOVERY_ATTEMPT_INCONCLUSIVE' ||
+      (issue.code === 'DISCOVERY_NOTE' &&
+        (proof.includes('loaded but produced 0 same-host sitemap children or URL entries') ||
+          proof.includes(' returned HTTP ') ||
+          proof.includes(' failed: ')));
+    if (!explicitlyUnusable) continue;
+    for (const url of snapshot.sitemapUrls) {
+      if (proof.includes(url)) unusable.add(url);
+    }
+  }
+  return new Set(snapshot.sitemapUrls.filter((url) => !unusable.has(url)));
 }
 
 function diffUrl(prev: UrlState, next: UrlState): ChangeEvent[] {
@@ -216,16 +234,6 @@ function change(
   extra: Partial<ChangeEvent> & { summary: string }
 ): ChangeEvent {
   return { code, class: cls, count: extra.count ?? 1, summary: extra.summary, url: extra.url, before: extra.before, after: extra.after };
-}
-
-function isHighValue(url: string): boolean {
-  try {
-    const path = new URL(url).pathname.replace(/\/+$/, '') || '/';
-    if (HIGH_VALUE.has(path)) return true;
-    return ['/pricing', '/login', '/signup', '/docs', '/blog'].some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
-  } catch {
-    return false;
-  }
 }
 
 function isWorseStatus(prev?: number, next?: number): boolean {

@@ -1,0 +1,40 @@
+Sitemapper professional demo export report
+Date: 2026-08-24
+
+Master
+- File: sitemapper-demo-master.mp4
+- Size: 8,716,098 bytes
+- Duration: 34.800 seconds
+- Video: H.264 High, 1920x1080, 60 fps, yuv420p, 1,796,475 b/s
+- Audio: AAC-LC, 44.1 kHz, stereo, 193,653 b/s
+- SHA-256: 95461f50206ac8c16a718c086053b4811822677a0b5d6070d8b497244c324beb
+
+Web
+- File: sitemapper-demo-web.mp4
+- Size: 5,533,436 bytes
+- Duration: 34.806 seconds
+- Video: H.264 High, 1920x1080, 60 fps, yuv420p, 1,097,919 b/s
+- Audio: AAC-LC, 44.1 kHz, stereo, 160,554 b/s
+- SHA-256: 0854937919b9af9c18fc30dffeaa81fc2f590c8f6399c575474b452aafa03aa3
+
+Short
+- File: sitemapper-demo-short.mp4
+- Size: 2,933,579 bytes
+- Duration: 19.200 seconds
+- Video: H.264 High, 1920x1080, 60 fps, yuv420p, 1,048,924 b/s
+- Audio: AAC-LC, 44.1 kHz, stereo, 159,478 b/s
+- SHA-256: 95796d89ee140ae8b0498288dba5e08ad897e124167b3c949f127d765b616300
+
+Audio and accessibility
+- Music: Easy Lemon by Kevin MacLeod, CC BY 3.0; attribution is in the end card and video-project/audio/LICENSE.txt.
+- Voiceover: none; the story is carried by restrained typography and real product footage.
+- Captions: public/brand/hero.vtt.
+- Integrated loudness: -20.7 LUFS; true peak: -6.1 dBFS.
+
+Final QA
+- Full web timeline reviewed at two frames per second after render.
+- Decoder pass: clean.
+- Black-frame pass: clean; no accidental black segment.
+- Freeze detections: deliberate held title and product compositions only.
+- OCR/privacy scan: no email, token, API key, local path, or account ID match.
+- Production hero hash matches the web export exactly.
