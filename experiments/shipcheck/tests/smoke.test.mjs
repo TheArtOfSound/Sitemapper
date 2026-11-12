@@ -51,6 +51,15 @@ test("rejects malformed JSON and missing required home", opts, async () => {
   assert.equal(r.status, 400);
 });
 
+test("rejects oversize JSON bodies with 413 without attempting a scan", opts, async () => {
+  const r = await post("/api/check", {
+    home:"https://www.cloudflare.com/",
+    note:"z".repeat(6000),
+    source:"qa"
+  });
+  assert.equal(r.status,413);
+});
+
 test("rejects interest without affirmative permission", opts, async () => {
   const r = await post("/api/interest", {
     email:"never-write-shipcheck-smoke@example.com",
