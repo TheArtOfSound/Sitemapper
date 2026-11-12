@@ -4,6 +4,8 @@
 
 **Live app: [sitemapper.oortstack.com](https://sitemapper.oortstack.com)** — map any public site with no account. Also mirrored at [sitemapper.bryanleonard237.workers.dev](https://sitemapper.bryanleonard237.workers.dev).
 
+> **ShipCheck proof experiment (Nov 2026):** [Test a public homepage and its critical pricing/signup URL](https://shipcheck.imagineqira.com/?src=github-readme). Read-only HTTP status/redirect evidence, with a copyable Codex investigation brief. This is **not** a real checkout test or currently billable monitoring product. [Codex implementation plan](docs/CODEX_SHIPCHECK_PRODUCTIZATION_2026-11-12.md).
+
 Sitemapper is a sitemap-first audit engine plus a hosted monitoring product. The free scan stays anonymous. Paid monitoring answers **what changed, what broke, when, and which search-visible pages are affected**.
 
 Mental model:
