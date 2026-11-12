@@ -3,14 +3,16 @@ const PAGE = "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><me
 function json(body,status=200){return new Response(JSON.stringify(body),{status,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff"}})}
 function valid(s){if(typeof s!=="string"||s.length>240)return null;try{const u=new URL(s);if(u.protocol!=="https:"||u.port||u.username||u.password||u.hostname.length<4||u.hostname==="localhost"||u.hostname.endsWith(".local")||u.hostname.endsWith(".internal")||u.hostname.endsWith(".test")||/^\d{1,3}(?:\.\d{1,3}){3}$/.test(u.hostname)||u.hostname.includes(":"))return null;u.hash="";return u}catch{return null}}
 async function probe(source,label){let current=source,redirects=0,lastStatus=0,started=Date.now();try{for(let i=0;i<3;i++){const response=await fetch(current.toString(),{method:"HEAD",redirect:"manual",signal:AbortSignal.timeout(6500),headers:{"user-agent":"QiraShipCheck/1.0 (public read-only HTTP URL check)"}});lastStatus=response.status;if(lastStatus>=300&&lastStatus<400&&response.headers.get("location")){const next=valid(new URL(response.headers.get("location"),current).toString());if(!next)throw Error("Redirect target not allowed");current=next;redirects++;continue}if(lastStatus===405||lastStatus===501){const r=await fetch(current.toString(),{method:"GET",redirect:"manual",signal:AbortSignal.timeout(6500),headers:{"user-agent":"QiraShipCheck/1.0"}});lastStatus=r.status;if(r.body)r.body.cancel().catch(()=>{});}return {label,url:source.toString(),final:current.toString(),status:lastStatus,ok:lastStatus>=200&&lastStatus<400,blocked:lastStatus===401||lastStatus===403||lastStatus===429,redirects,elapsed_ms:Date.now()-started}}throw Error("Too many redirects")}catch(e){return {label,url:source.toString(),final:current.toString(),status:lastStatus,ok:false,blocked:false,elapsed_ms:Date.now()-started,error:String(e.message||"Fetch error").slice(0,90)}}}
+async function readJsonLimited(request,maxBytes){const size=Number(request.headers.get("content-length")||0);if(size>maxBytes)throw Error("too_large");const reader=request.body?.getReader();if(!reader)throw Error("invalid_json");const chunks=[];let total=0;while(true){const part=await reader.read();if(part.done)break;total+=part.value.byteLength;if(total>maxBytes){await reader.cancel().catch(()=>{});throw Error("too_large")}chunks.push(part.value)}const bytes=new Uint8Array(total);let at=0;for(const c of chunks){bytes.set(c,at);at+=c.length}return JSON.parse(new TextDecoder().decode(bytes))}
 export default {
 async fetch(request,env,ctx){
  const u=new URL(request.url),origin=request.headers.get("origin");if(request.method==="POST"&&origin&&origin!==u.origin)return json({error:"Origin not allowed"},403);
+ if(request.method==="POST"&&(u.pathname==="/api/check"||u.pathname==="/api/interest")){const limiter=u.pathname==="/api/check"?env.SCAN_RATE:env.INTEREST_RATE;const clientKey=request.headers.get("CF-Connecting-IP")||"shared-anonymous";const decision=await limiter.limit({key:clientKey});if(!decision.success)return json({error:"Rate limit exceeded. Try again in about a minute."},429)}
  if(request.method==="GET"&&u.pathname==="/")return new Response(PAGE,{headers:{"content-type":"text/html; charset=utf-8","cache-control":"public, max-age=120","x-content-type-options":"nosniff","referrer-policy":"strict-origin-when-cross-origin","x-frame-options":"DENY","permissions-policy":"camera=(), microphone=(), geolocation=()"}});
  if(request.method==="GET"&&u.pathname==="/health")return json({ok:true,component:"ShipCheck public research pilot",billing:"not enabled"});
  if(request.method==="POST"&&u.pathname==="/api/check"){
   if(Number(request.headers.get("content-length")||0)>3000)return json({error:"Input too long"},413);
-  let d;try{d=await request.json()}catch{return json({error:"Invalid JSON"},400)}
+  let d;try{d=await readJsonLimited(request,3000)}catch(e){return json({error:e.message==="too_large"?"Input too long":"Invalid JSON"},e.message==="too_large"?413:400)}
   const home=valid(d.home),critical=d.critical?valid(d.critical):null;if(!home||(d.critical&&!critical))return json({error:"Use public HTTPS URLs (no IP addresses or custom ports)."},400);
   const results=await Promise.all([probe(home,"Homepage"),...(critical?[probe(critical,"Critical page")]:[])]);
   const source=String(d.source||"direct").toLowerCase().replace(/[^a-z0-9_-]/g,"").slice(0,30)||"direct";
@@ -19,7 +21,7 @@ async fetch(request,env,ctx){
  }
  if(request.method==="POST"&&u.pathname==="/api/interest"){
   if(Number(request.headers.get("content-length")||0)>2000)return json({error:"Input too long"},413);
-  let d;try{d=await request.json()}catch{return json({error:"Invalid JSON"},400)}
+  let d;try{d=await readJsonLimited(request,2000)}catch(e){return json({error:e.message==="too_large"?"Input too long":"Invalid JSON"},e.message==="too_large"?413:400)}
   if(d.extra)return json({ok:true});
   const email=String(d.email||"").trim().toLowerCase(),choice=String(d.choice||"");
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>180||!d.consent||!["demo","beta","monthly"].includes(choice))return json({error:"A valid email, choice and explicit consent are required."},400);
