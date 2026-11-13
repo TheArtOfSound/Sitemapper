@@ -37,6 +37,7 @@ function fixture(status = 'active', priceId = 'price_builder', current?: { strip
     STRIPE_PRICE_BUILDER_MONTHLY: 'price_builder',
     STRIPE_PRICE_PRO_MONTHLY: 'price_pro',
     STRIPE_PRICE_AGENCY_MONTHLY: 'price_agency',
+    SNAPSHOTS: { head: vi.fn(async () => null) },
     DB: {
       prepare(sql: string) {
         return {
@@ -224,6 +225,17 @@ describe('Checkout safety', () => {
     const response = await startCheckout(env, new Request('https://sitemapper.oortstack.com/'), user, 'unexpected' as never, 'month');
     expect(response.status).toBe(400);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('pauses paid checkout if R2 snapshot storage cannot be reached', async () => {
+    const { env } = fixture();
+    vi.mocked(env.SNAPSHOTS.head).mockRejectedValueOnce(new Error('R2 subscription disabled'));
+    const checkoutFetch = vi.fn(async () => Response.json({ url: 'https://checkout.stripe.com/should-not-open' }));
+    vi.stubGlobal('fetch', checkoutFetch);
+    const response = await startCheckout(env, new Request('https://sitemapper.oortstack.com/'), user, 'builder', 'month');
+    expect(response.status).toBe(503);
+    expect((await response.json()).error).toContain('Monitoring storage is unavailable');
+    expect(checkoutFetch).not.toHaveBeenCalled();
   });
 
   it('blocks a second Checkout for an already-paying workspace', async () => {
