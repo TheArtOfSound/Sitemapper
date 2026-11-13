@@ -15,6 +15,9 @@ export function priceIdFor(env: Env, plan: PlanId, interval: 'month' | 'year'): 
 }
 
 export async function startCheckout(env: Env, request: Request, user: SessionUser, plan: PlanId, interval: 'month' | 'year'): Promise<Response> {
+  if (!['builder', 'pro', 'agency'].includes(plan) || !['month', 'year'].includes(interval)) {
+    return json({ error: 'Invalid subscription plan or interval.' }, 400);
+  }
   if (!env.STRIPE_SECRET_KEY) {
     return json(
       {
@@ -43,8 +46,8 @@ export async function startCheckout(env: Env, request: Request, user: SessionUse
     'line_items[0][quantity]': '1',
     allow_promotion_codes: 'true',
   });
-  if (user.email) params.set('customer_email', user.email);
   if (ws?.stripe_customer_id) params.set('customer', ws.stripe_customer_id);
+  else if (user.email) params.set('customer_email', user.email);
   const res = await fetch('https://api.stripe.com/v1/checkout/sessions', {
     method: 'POST',
     headers: stripeHeaders(env),
@@ -75,6 +78,66 @@ export async function billingPortal(env: Env, request: Request, user: SessionUse
   return redirect(body.url);
 }
 
+type StripeSubscription = {
+  id: string;
+  status: string;
+  customer?: string | { id?: string };
+  items?: { data?: Array<{ price?: { id?: string } }> };
+};
+
+function stripeId(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object' && 'id' in value && typeof value.id === 'string') return value.id;
+  return '';
+}
+
+function invoiceSubscriptionId(invoice: Record<string, unknown>): string {
+  const parent = invoice.parent as { subscription_details?: { subscription?: unknown } } | undefined;
+  return stripeId(invoice.subscription) || stripeId(parent?.subscription_details?.subscription);
+}
+
+async function retrieveSubscription(env: Env, subscriptionId: string): Promise<StripeSubscription> {
+  if (!env.STRIPE_SECRET_KEY) throw new Error('Stripe API not configured');
+  const res = await fetch(`https://api.stripe.com/v1/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+    headers: { authorization: `Bearer ${env.STRIPE_SECRET_KEY}` },
+  });
+  if (!res.ok) throw new Error(`Stripe subscription lookup failed with HTTP ${res.status}`);
+  const subscription = (await res.json()) as StripeSubscription;
+  if (subscription.id !== subscriptionId || typeof subscription.status !== 'string') {
+    throw new Error('Stripe returned an invalid subscription');
+  }
+  return subscription;
+}
+
+/**
+ * Reconcile from Stripe's current subscription state, not an event's age or user-controlled
+ * checkout metadata. Duplicate/out-of-order webhook events therefore cannot re-grant
+ * expired subscriptions, and a completed but unpaid Checkout never unlocks paid tiers.
+ */
+async function reconcileSubscription(env: Env, subscriptionId: string, workspaceId = ''): Promise<void> {
+  const subscription = await retrieveSubscription(env, subscriptionId);
+  const priceId = subscription.items?.data?.[0]?.price?.id || '';
+  const matchedPlan = planFromPrice(env, priceId);
+  const entitled = subscription.status === 'active' || subscription.status === 'trialing';
+  const plan: PlanId = entitled && matchedPlan ? matchedPlan : 'free';
+  const customerId = stripeId(subscription.customer);
+
+  if (workspaceId) {
+    await env.DB.prepare(
+      'UPDATE workspaces SET stripe_customer_id = ?, stripe_subscription_id = ?, stripe_status = ?, stripe_price_id = ?, plan = ? WHERE id = ?'
+    )
+      .bind(customerId || null, subscriptionId, subscription.status, priceId || null, plan, workspaceId)
+      .run();
+  } else {
+    // Events for an older subscription must never replace a newer subscription on a workspace.
+    await env.DB.prepare(
+      'UPDATE workspaces SET stripe_status = ?, stripe_price_id = ?, plan = ? WHERE stripe_subscription_id = ?'
+    )
+      .bind(subscription.status, priceId || null, plan, subscriptionId)
+      .run();
+  }
+}
+
 export async function handleStripeWebhook(env: Env, request: Request): Promise<Response> {
   if (!env.STRIPE_WEBHOOK_SECRET) return json({ error: 'STRIPE_WEBHOOK_SECRET missing.' }, 503);
   const payload = await request.text();
@@ -82,45 +145,54 @@ export async function handleStripeWebhook(env: Env, request: Request): Promise<R
   if (!(await verifyStripeSignature(payload, header, env.STRIPE_WEBHOOK_SECRET))) {
     return json({ error: 'Invalid Stripe signature.' }, 400);
   }
-  const event = JSON.parse(payload) as {
-    type: string;
-    data: { object: Record<string, unknown> };
-  };
-  if (event.type === 'checkout.session.completed') {
-    const obj = event.data.object;
-    const workspaceId = String((obj.metadata as { workspace_id?: string } | undefined)?.workspace_id || obj.client_reference_id || '');
-    const customer = String(obj.customer || '');
-    const subscription = String(obj.subscription || '');
-    if (workspaceId) {
-      const plan = String((obj.metadata as { plan?: string } | undefined)?.plan || '');
-      await env.DB.prepare(
-        'UPDATE workspaces SET stripe_customer_id = ?, stripe_subscription_id = ?, stripe_status = ?, plan = CASE WHEN ? IN (\'builder\', \'pro\', \'agency\') THEN ? ELSE plan END WHERE id = ?'
-      )
-        .bind(customer || null, subscription || null, 'active', plan, plan, workspaceId)
-        .run();
+
+  let event: { type: string; data: { object: Record<string, unknown> } };
+  try {
+    event = JSON.parse(payload) as typeof event;
+    if (!event || typeof event.type !== 'string' || !event.data || !event.data.object) {
+      return json({ error: 'Malformed Stripe event.' }, 400);
     }
+  } catch {
+    return json({ error: 'Malformed Stripe event.' }, 400);
   }
-  if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted') {
-    const obj = event.data.object;
-    const subscriptionId = String(obj.id || '');
-    const status = String(obj.status || 'canceled');
-    const priceId = String(((obj.items as { data?: Array<{ price?: { id?: string } }> } | undefined)?.data || [])[0]?.price?.id || '');
-    const plan = planFromPrice(env, priceId);
-    await env.DB.prepare(
-      'UPDATE workspaces SET stripe_status = ?, stripe_price_id = ?, plan = CASE WHEN ? != \'\' THEN ? ELSE plan END WHERE stripe_subscription_id = ?'
-    )
-      .bind(status, priceId || null, plan, plan || 'free', subscriptionId)
-      .run();
-    if (status === 'canceled' || status === 'unpaid' || status === 'incomplete_expired') {
-      await env.DB.prepare('UPDATE workspaces SET plan = ? WHERE stripe_subscription_id = ?').bind('free', subscriptionId).run();
+
+  const obj = event.data.object;
+  let subscriptionId = '';
+  let workspaceId = '';
+  switch (event.type) {
+    case 'checkout.session.completed':
+    case 'checkout.session.async_payment_succeeded':
+    case 'checkout.session.async_payment_failed': {
+      if (obj.mode !== 'subscription') break;
+      const metadata = obj.metadata as { workspace_id?: string } | undefined;
+      workspaceId = String(metadata?.workspace_id || obj.client_reference_id || '');
+      subscriptionId = stripeId(obj.subscription);
+      // Neither a payment status nor the client's plan claim grants access directly.
+      break;
     }
+    case 'customer.subscription.created':
+    case 'customer.subscription.updated':
+    case 'customer.subscription.deleted':
+      subscriptionId = stripeId(obj.id);
+      break;
+    case 'invoice.paid':
+    case 'invoice.payment_failed':
+      subscriptionId = invoiceSubscriptionId(obj);
+      break;
+    default:
+      return json({ received: true, at: nowIso() });
   }
-  if (event.type === 'invoice.payment_failed') {
-    const obj = event.data.object;
-    const customer = String(obj.customer || '');
-    if (customer) {
-      await env.DB.prepare('UPDATE workspaces SET stripe_status = ? WHERE stripe_customer_id = ?').bind('past_due', customer).run();
-    }
+
+  if (!subscriptionId) {
+    // Unrelated invoices or Checkout sessions do not belong to this subscription system.
+    return json({ received: true, at: nowIso() });
+  }
+  try {
+    await reconcileSubscription(env, subscriptionId, workspaceId);
+  } catch {
+    // Return a non-2xx response so Stripe retries transient API/database failures.
+    // Never disclose Stripe response bodies, API keys, or customer information.
+    return json({ error: 'Unable to reconcile Stripe subscription; retry delivery.' }, 503);
   }
   return json({ received: true, at: nowIso() });
 }
