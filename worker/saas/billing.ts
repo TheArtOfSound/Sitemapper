@@ -160,9 +160,10 @@ async function reconcileSubscription(env: Env, subscriptionId: string, workspace
     if (current.stripe_customer_id && current.stripe_customer_id !== customerId) {
       throw new Error('Subscription customer does not match workspace');
     }
-    // A delayed/failed replacement Checkout cannot remove an existing valid subscription.
-    if (!entitled && current.stripe_subscription_id && current.stripe_subscription_id !== subscriptionId &&
-        current.plan !== 'free' && ['active', 'trialing'].includes(current.stripe_status)) {
+    // A late event for a second subscription cannot replace an existing live subscription.
+    // This applies even when Stripe reports both subscriptions as active.
+    if (current.stripe_subscription_id && current.stripe_subscription_id !== subscriptionId &&
+        ['active', 'trialing'].includes(current.stripe_status)) {
       return;
     }
     await env.DB.prepare(
@@ -212,7 +213,15 @@ export async function handleStripeWebhook(env: Env, request: Request): Promise<R
       // Neither a payment status nor the client's plan claim grants access directly.
       break;
     }
-    case 'customer.subscription.created':
+    case 'customer.subscription.created': {
+      subscriptionId = stripeId(obj.id);
+      // The canonical Stripe subscription, fetched again below, must confirm ownership.
+      const metadata = obj.metadata as { workspace_id?: string; product?: string } | undefined;
+      if (metadata?.product === 'sitemapper' && typeof metadata.workspace_id === 'string') {
+        workspaceId = metadata.workspace_id;
+      }
+      break;
+    }
     case 'customer.subscription.updated':
     case 'customer.subscription.deleted':
       subscriptionId = stripeId(obj.id);
