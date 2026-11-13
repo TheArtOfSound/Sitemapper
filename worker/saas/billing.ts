@@ -123,6 +123,17 @@ async function reconcileSubscription(env: Env, subscriptionId: string, workspace
   const customerId = stripeId(subscription.customer);
 
   if (workspaceId) {
+    // A failed new Checkout must not replace a separate, still-active paid subscription.
+    // The successful asynchronous payment event will reconcile the new subscription later.
+    if (!entitled) {
+      const current = await env.DB.prepare(
+        'SELECT stripe_subscription_id, plan, stripe_status FROM workspaces WHERE id = ?'
+      ).bind(workspaceId).first<{ stripe_subscription_id: string | null; plan: string; stripe_status: string }>();
+      if (current?.stripe_subscription_id && current.stripe_subscription_id !== subscriptionId &&
+          current.plan !== 'free' && ['active', 'trialing'].includes(current.stripe_status)) {
+        return;
+      }
+    }
     await env.DB.prepare(
       'UPDATE workspaces SET stripe_customer_id = ?, stripe_subscription_id = ?, stripe_status = ?, stripe_price_id = ?, plan = ? WHERE id = ?'
     )
