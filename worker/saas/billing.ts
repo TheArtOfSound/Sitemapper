@@ -32,6 +32,14 @@ export async function startCheckout(env: Env, request: Request, user: SessionUse
   if (!price) {
     return json({ error: `No Stripe price id configured for ${plan} ${interval}.` }, 503);
   }
+  // Paid monitoring depends on durable snapshot storage. Do not collect payment if unavailable.
+  // This is a read-only R2 check: a missing probe object (null) means the bucket is reachable.
+  try {
+    if (!env.SNAPSHOTS) throw new Error('R2 binding missing');
+    await env.SNAPSHOTS.head('system/checkout-storage-probe');
+  } catch {
+    return json({ error: 'Monitoring storage is unavailable. New paid checkouts are temporarily paused.' }, 503);
+  }
   const ws = await env.DB.prepare('SELECT stripe_customer_id, stripe_subscription_id, stripe_status FROM workspaces WHERE id = ?')
     .bind(user.workspaceId)
     .first<{ stripe_customer_id: string | null; stripe_subscription_id: string | null; stripe_status: string }>();
