@@ -32,9 +32,14 @@ export async function startCheckout(env: Env, request: Request, user: SessionUse
   if (!price) {
     return json({ error: `No Stripe price id configured for ${plan} ${interval}.` }, 503);
   }
-  const ws = await env.DB.prepare('SELECT stripe_customer_id FROM workspaces WHERE id = ?')
+  const ws = await env.DB.prepare('SELECT stripe_customer_id, stripe_subscription_id, stripe_status FROM workspaces WHERE id = ?')
     .bind(user.workspaceId)
-    .first<{ stripe_customer_id: string | null }>();
+    .first<{ stripe_customer_id: string | null; stripe_subscription_id: string | null; stripe_status: string }>();
+  if (!ws) return json({ error: 'Workspace not found.' }, 404);
+  // Avoid charging an existing or pending subscriber twice. Changes belong in the portal.
+  if (ws.stripe_subscription_id && !['canceled', 'incomplete_expired'].includes(ws.stripe_status)) {
+    return json({ error: 'A subscription already exists for this workspace. Manage it from Billing instead.' }, 409);
+  }
   const params = new URLSearchParams({
     mode: 'subscription',
     success_url: `${originOf(request, env)}/app/billing?checkout=success`,
@@ -123,16 +128,24 @@ async function reconcileSubscription(env: Env, subscriptionId: string, workspace
   const customerId = stripeId(subscription.customer);
 
   if (workspaceId) {
-    // A failed new Checkout must not replace a separate, still-active paid subscription.
-    // The successful asynchronous payment event will reconcile the new subscription later.
-    if (!entitled) {
-      const current = await env.DB.prepare(
-        'SELECT stripe_subscription_id, plan, stripe_status FROM workspaces WHERE id = ?'
-      ).bind(workspaceId).first<{ stripe_subscription_id: string | null; plan: string; stripe_status: string }>();
-      if (current?.stripe_subscription_id && current.stripe_subscription_id !== subscriptionId &&
-          current.plan !== 'free' && ['active', 'trialing'].includes(current.stripe_status)) {
-        return;
-      }
+    // Never bind an unrelated subscription/price to a workspace, even in a shared Stripe account.
+    if (!matchedPlan || !customerId) return;
+    const current = await env.DB.prepare(
+      'SELECT stripe_customer_id, stripe_subscription_id, plan, stripe_status FROM workspaces WHERE id = ?'
+    ).bind(workspaceId).first<{
+      stripe_customer_id: string | null;
+      stripe_subscription_id: string | null;
+      plan: string;
+      stripe_status: string;
+    }>();
+    if (!current) throw new Error('Checkout workspace not found');
+    if (current.stripe_customer_id && current.stripe_customer_id !== customerId) {
+      throw new Error('Subscription customer does not match workspace');
+    }
+    // A delayed/failed replacement Checkout cannot remove an existing valid subscription.
+    if (!entitled && current.stripe_subscription_id && current.stripe_subscription_id !== subscriptionId &&
+        current.plan !== 'free' && ['active', 'trialing'].includes(current.stripe_status)) {
+      return;
     }
     await env.DB.prepare(
       'UPDATE workspaces SET stripe_customer_id = ?, stripe_subscription_id = ?, stripe_status = ?, stripe_price_id = ?, plan = ? WHERE id = ?'
@@ -209,17 +222,17 @@ export async function handleStripeWebhook(env: Env, request: Request): Promise<R
 }
 
 export async function verifyStripeSignature(payload: string, header: string, secret: string): Promise<boolean> {
-  const parts = Object.fromEntries(header.split(',').map((part) => part.split('=')));
-  const t = parts.t;
-  const v1 = parts.v1;
-  if (!t || !v1) return false;
-  const age = Math.abs(Date.now() / 1000 - Number(t));
-  if (age > 300) return false;
-  const signed = `${t}.${payload}`;
+  const pieces = header.split(',').map((part) => part.trim().split('='));
+  const timestamp = pieces.find(([key]) => key === 't')?.[1];
+  const candidates = pieces.filter(([key]) => key === 'v1').map(([, value]) => value);
+  if (!timestamp || !/^\d+$/.test(timestamp) || !candidates.length) return false;
+  const time = Number(timestamp);
+  if (!Number.isSafeInteger(time) || Math.abs(Date.now() / 1000 - time) > 300) return false;
+  const signed = `${timestamp}.${payload}`;
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(signed));
   const hex = [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, '0')).join('');
-  return timingSafeEqual(hex, v1);
+  return candidates.some((value) => /^[a-f0-9]{64}$/i.test(value) && timingSafeEqual(hex, value.toLowerCase()));
 }
 
 function planFromPrice(env: Env, priceId: string): PlanId | '' {
