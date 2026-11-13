@@ -62,6 +62,7 @@ function fixture(status = 'active', priceId = 'price_builder', current?: { strip
       id: 'sub_one',
       status,
       customer: 'cus_existing',
+      metadata: { workspace_id: 'ws_one', product: 'sitemapper' },
       items: { data: [{ price: { id: priceId } }] },
     });
   });
@@ -127,6 +128,21 @@ describe('Subscription reconciliation', () => {
       subscription: 'sub_one',
     });
     expect(response.status).toBe(200);
+    expect(writes).toHaveLength(0);
+  });
+
+  it('rejects a cross-product or wrong-workspace Checkout even when Stripe signs the event', async () => {
+    const { env, writes } = fixture('active');
+    const spoofFetch = vi.fn(async () => Response.json({
+      id: 'sub_one', status: 'active', customer: 'cus_existing',
+      metadata: { workspace_id: 'ws_different', product: 'different_product' },
+      items: { data: [{ price: { id: 'price_builder' } }] },
+    }));
+    vi.stubGlobal('fetch', spoofFetch);
+    const response = await webhook(env, 'checkout.session.completed', {
+      mode: 'subscription', metadata: { workspace_id: 'ws_one' }, subscription: 'sub_one',
+    });
+    expect(response.status).toBe(503);
     expect(writes).toHaveLength(0);
   });
 
@@ -250,6 +266,20 @@ describe('Checkout safety', () => {
     const response = await startCheckout(env, new Request('https://sitemapper.oortstack.com/'), user, 'agency', 'month');
     expect(response.status).toBe(409);
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('attaches workspace and product ownership metadata directly to the Stripe subscription', async () => {
+    const { env } = fixture();
+    const fetchMock = vi.fn(async (_url: string, opts: RequestInit) => {
+      const params = new URLSearchParams(String(opts.body));
+      expect(params.get('subscription_data[metadata][workspace_id]')).toBe('ws_one');
+      expect(params.get('subscription_data[metadata][product]')).toBe('sitemapper');
+      return Response.json({ url: 'https://checkout.stripe.com/test-session' });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const response = await startCheckout(env, new Request('https://sitemapper.oortstack.com/'), user, 'builder', 'month');
+    expect(response.status).toBe(302);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('does not send customer_email alongside an existing Stripe customer', async () => {
