@@ -55,6 +55,8 @@ export async function startCheckout(env: Env, request: Request, user: SessionUse
     client_reference_id: user.workspaceId,
     'metadata[workspace_id]': user.workspaceId,
     'metadata[plan]': plan,
+    'subscription_data[metadata][workspace_id]': user.workspaceId,
+    'subscription_data[metadata][product]': 'sitemapper',
     'line_items[0][price]': price,
     'line_items[0][quantity]': '1',
     allow_promotion_codes: 'true',
@@ -95,6 +97,7 @@ type StripeSubscription = {
   id: string;
   status: string;
   customer?: string | { id?: string };
+  metadata?: { workspace_id?: string; product?: string };
   items?: { data?: Array<{ price?: { id?: string } }> };
 };
 
@@ -134,8 +137,15 @@ async function reconcileSubscription(env: Env, subscriptionId: string, workspace
   const entitled = subscription.status === 'active' || subscription.status === 'trialing';
   const plan: PlanId = entitled && matchedPlan ? matchedPlan : 'free';
   const customerId = stripeId(subscription.customer);
+  const canonicalWorkspaceId = subscription.metadata?.workspace_id || '';
+  const canonicalProduct = subscription.metadata?.product || '';
 
   if (workspaceId) {
+    // Checkout metadata is an event routing hint, not a claim of subscription ownership.
+    // The source of truth is metadata on the subscription retrieved from Stripe.
+    if (canonicalWorkspaceId !== workspaceId || canonicalProduct !== 'sitemapper') {
+      throw new Error('Checkout subscription ownership metadata mismatch');
+    }
     // Never bind an unrelated subscription/price to a workspace, even in a shared Stripe account.
     if (!matchedPlan || !customerId) return;
     const current = await env.DB.prepare(
