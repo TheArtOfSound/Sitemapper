@@ -29,7 +29,7 @@ describe('Stripe webhook signatures', () => {
 
 afterEach(() => vi.unstubAllGlobals());
 
-function fixture(status = 'active', priceId = 'price_builder') {
+function fixture(status = 'active', priceId = 'price_builder', current?: { stripe_subscription_id: string; plan: string; stripe_status: string }) {
   const writes: Array<{ sql: string; values: unknown[] }> = [];
   const env = {
     STRIPE_SECRET_KEY: 'sk_test_example_not_real',
@@ -46,7 +46,7 @@ function fixture(status = 'active', priceId = 'price_builder') {
                 return { success: true };
               },
               async first() {
-                return { stripe_customer_id: 'cus_existing' };
+                return current || { stripe_customer_id: 'cus_existing' };
               },
             };
           },
@@ -89,6 +89,20 @@ describe('Subscription reconciliation', () => {
     expect(response.status).toBe(200);
     expect(writes).toHaveLength(1);
     expect(writes[0].values).toEqual(['cus_existing', 'sub_one', 'incomplete', 'price_builder', 'free', 'ws_one']);
+  });
+
+  it('preserves an existing paid subscription when a replacement Checkout has not been paid', async () => {
+    const { env, writes } = fixture('incomplete', 'price_builder', {
+      stripe_subscription_id: 'sub_paid_old', plan: 'pro', stripe_status: 'active',
+    });
+    const response = await webhook(env, 'checkout.session.completed', {
+      mode: 'subscription',
+      payment_status: 'unpaid',
+      metadata: { workspace_id: 'ws_one', plan: 'agency' },
+      subscription: 'sub_one',
+    });
+    expect(response.status).toBe(200);
+    expect(writes).toHaveLength(0);
   });
 
   it('derives the paid tier from the authoritative Stripe price, not Checkout metadata', async () => {
