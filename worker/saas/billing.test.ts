@@ -146,6 +146,31 @@ describe('Subscription reconciliation', () => {
     expect(writes).toHaveLength(0);
   });
 
+  it('provisions from signed subscription.created when Checkout webhook was missed', async () => {
+    const { env, writes } = fixture('active');
+    const response = await webhook(env, 'customer.subscription.created', {
+      id: 'sub_one', metadata: { product: 'sitemapper', workspace_id: 'ws_one' },
+    });
+    expect(response.status).toBe(200);
+    expect(writes).toHaveLength(1);
+    expect(writes[0].values).toEqual(['cus_existing', 'sub_one', 'active', 'price_builder', 'builder', 'ws_one']);
+  });
+
+  it('prevents a late second paid Checkout from overwriting an already-active subscription', async () => {
+    const { env, writes } = fixture('active', 'price_builder', {
+      stripe_customer_id: 'cus_existing',
+      stripe_subscription_id: 'sub_old_active',
+      plan: 'pro',
+      stripe_status: 'active',
+    });
+    const response = await webhook(env, 'checkout.session.completed', {
+      mode: 'subscription', metadata: { workspace_id: 'ws_one' },
+      subscription: 'sub_one',
+    });
+    expect(response.status).toBe(200);
+    expect(writes).toHaveLength(0);
+  });
+
   it('does not attach a subscription whose customer belongs to another workspace', async () => {
     const { env, writes } = fixture('active', 'price_builder', {
       stripe_customer_id: 'cus_different',
