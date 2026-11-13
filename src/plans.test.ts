@@ -3,15 +3,23 @@ import { entitlementsFor, canAddSite, canDeepCheck } from './plans.js';
 
 describe('entitlements', () => {
   it('maps known plans', () => {
-    expect(entitlementsFor('pro').gsc).toBe(true);
+    expect(entitlementsFor('pro', 'active').gsc).toBe(true);
     expect(entitlementsFor('free').webhooks).toBe(false);
-    expect(entitlementsFor('builder').sites).toBe(5);
+    expect(entitlementsFor('builder', 'active').sites).toBe(5);
   });
 
   it('downgrades paid plans when Stripe is past_due or canceled', () => {
     expect(entitlementsFor('agency', 'past_due').plan).toBe('free');
     expect(entitlementsFor('pro', 'canceled').github).toBe(false);
     expect(entitlementsFor('pro', 'active').github).toBe(true);
+  });
+
+  it('fails closed when paid Stripe status is missing, invalid, or pending', () => {
+    expect(entitlementsFor('pro').plan).toBe('free');
+    expect(entitlementsFor('agency', '').plan).toBe('free');
+    expect(entitlementsFor('builder', 'none').plan).toBe('free');
+    expect(entitlementsFor('agency', 'incomplete').plan).toBe('free');
+    expect(entitlementsFor('pro', 'trialing').plan).toBe('pro');
   });
 
   it('enforces site and deep-check quotas', () => {
