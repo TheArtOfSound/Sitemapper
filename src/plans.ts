@@ -98,7 +98,8 @@ export const PLAN_PRICES_USD: Record<PlanId, { monthly: number; annual: number; 
 
 export function entitlementsFor(plan: string, stripeStatus?: string): Entitlements {
   const id = (['free', 'builder', 'pro', 'agency'] as PlanId[]).includes(plan as PlanId) ? (plan as PlanId) : 'free';
-  if (id !== 'free' && stripeStatus && !['active', 'trialing'].includes(stripeStatus)) {
+  // Missing or unknown Stripe state must fail closed, never unlock a paid tier.
+  if (id !== 'free' && !['active', 'trialing'].includes(stripeStatus ?? '')) {
     return PLANS.free;
   }
   return PLANS[id];
