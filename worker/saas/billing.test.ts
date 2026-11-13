@@ -36,6 +36,7 @@ function fixture(status = 'active', priceId = 'price_builder', current?: { strip
     STRIPE_WEBHOOK_SECRET: 'whsec_test',
     STRIPE_PRICE_BUILDER_MONTHLY: 'price_builder',
     STRIPE_PRICE_PRO_MONTHLY: 'price_pro',
+    STRIPE_PRICE_AGENCY_MONTHLY: 'price_agency',
     DB: {
       prepare(sql: string) {
         return {
