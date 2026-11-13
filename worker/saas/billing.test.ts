@@ -29,7 +29,7 @@ describe('Stripe webhook signatures', () => {
 
 afterEach(() => vi.unstubAllGlobals());
 
-function fixture(status = 'active', priceId = 'price_builder', current?: { stripe_subscription_id: string; plan: string; stripe_status: string }) {
+function fixture(status = 'active', priceId = 'price_builder', current?: { stripe_subscription_id: string; plan: string; stripe_status: string; stripe_customer_id?: string }) {
   const writes: Array<{ sql: string; values: unknown[] }> = [];
   const env = {
     STRIPE_SECRET_KEY: 'sk_test_example_not_real',
@@ -76,6 +76,19 @@ async function webhook(env: Env, type: string, object: Record<string, unknown>) 
   }));
 }
 
+describe('Rotating Stripe signatures', () => {
+  it('accepts one valid signature among multiple v1 values', async () => {
+    const payload = '{"type":"test"}';
+    const t = Math.floor(Date.now() / 1000);
+    const good = await sign(payload, 'whsec_test', t);
+    expect(await verifyStripeSignature(payload, `t=${t},v1=${'0'.repeat(64)},v1=${good.split('v1=')[1]}`, 'whsec_test')).toBe(true);
+  });
+
+  it('rejects malformed timestamps instead of bypassing the freshness check', async () => {
+    expect(await verifyStripeSignature('{}', `t=NaN,v1=${'0'.repeat(64)}`, 'whsec_test')).toBe(false);
+  });
+});
+
 describe('Subscription reconciliation', () => {
   it('does not unlock a paid tier for an incomplete Checkout subscription', async () => {
     const { env, writes } = fixture('incomplete');
@@ -102,6 +115,31 @@ describe('Subscription reconciliation', () => {
       subscription: 'sub_one',
     });
     expect(response.status).toBe(200);
+    expect(writes).toHaveLength(0);
+  });
+
+  it('ignores a completed Checkout for a price belonging to another product', async () => {
+    const { env, writes } = fixture('active', 'price_unrelated');
+    const response = await webhook(env, 'checkout.session.completed', {
+      mode: 'subscription', metadata: { workspace_id: 'ws_one' },
+      subscription: 'sub_one',
+    });
+    expect(response.status).toBe(200);
+    expect(writes).toHaveLength(0);
+  });
+
+  it('does not attach a subscription whose customer belongs to another workspace', async () => {
+    const { env, writes } = fixture('active', 'price_builder', {
+      stripe_customer_id: 'cus_different',
+      stripe_subscription_id: 'sub_existing',
+      plan: 'builder',
+      stripe_status: 'active',
+    });
+    const response = await webhook(env, 'checkout.session.completed', {
+      mode: 'subscription', metadata: { workspace_id: 'ws_one' },
+      subscription: 'sub_one',
+    });
+    expect(response.status).toBe(503);
     expect(writes).toHaveLength(0);
   });
 
@@ -185,6 +223,20 @@ describe('Checkout safety', () => {
     const response = await startCheckout(env, new Request('https://sitemapper.oortstack.com/'), user, 'unexpected' as never, 'month');
     expect(response.status).toBe(400);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('blocks a second Checkout for an already-paying workspace', async () => {
+    const { env } = fixture('active', 'price_builder', {
+      stripe_customer_id: 'cus_existing',
+      stripe_subscription_id: 'sub_one',
+      plan: 'builder',
+      stripe_status: 'active',
+    });
+    const fetchSpy = vi.fn(async () => Response.json({ url: 'https://checkout.stripe.com/should-not-open' }));
+    vi.stubGlobal('fetch', fetchSpy);
+    const response = await startCheckout(env, new Request('https://sitemapper.oortstack.com/'), user, 'agency', 'month');
+    expect(response.status).toBe(409);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('does not send customer_email alongside an existing Stripe customer', async () => {
