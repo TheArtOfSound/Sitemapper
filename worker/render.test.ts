@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { agentPackMarkdown, buildAgentPack } from './agent-pack.js';
 import { buildInsights } from './insights.js';
-import { homeHtml, reportHtml, shell, type Result } from './render.js';
+import { aboutHtml, homeHtml, reportHtml, shell, type Result } from './render.js';
 
 function resultWithScores(scores: Result['scores']): Result {
   const site = 'https://example.com';
@@ -151,5 +151,31 @@ describe('logged-in app chrome', () => {
     expect(markup).toContain('href="/brand/favicon-32.png" type="image/png" sizes="32x32"');
     expect(markup).toContain('href="/brand/apple-touch-icon.png" sizes="180x180"');
     expect(markup).not.toContain('href="/brand/mark.jpg"');
+  });
+});
+
+describe('operator trust and truthful product boundaries', () => {
+  const markup = aboutHtml();
+
+  it('names the person and company responsible for Sitemapper', () => {
+    expect(markup).toContain('Built by Bryan Leonard.');
+    expect(markup).toContain('https://imagineqira.com/bryanleonard/?view=systems');
+    expect(markup).toContain('https://github.com/TheArtOfSound/Sitemapper');
+    expect(markup).toContain('mailto:bryanleonard@imagineqira.com?subject=Sitemapper%20question');
+  });
+
+  it('states sampling limits and avoids claiming crawler results are business impact', () => {
+    expect(markup).toContain('not a full penetration test, uptime guarantee');
+    expect(markup).toContain('should be treated as inconclusive');
+    expect(markup).toContain('do not convert a broken page into an invented dollar-loss estimate');
+    expect(markup).toContain('14 days of history');
+    expect(markup).toContain('href="/pricing"');
+  });
+
+  it('keeps the builder link only in public chrome, not the signed-in workspace', () => {
+    const publicMarkup = homeHtml({ runs: 1, pages: 1 });
+    expect(publicMarkup).toContain('href="/about">Built by Bryan Leonard</a>');
+    const appMarkup = shell({ title: 'Dashboard', description: 'Workspace', body: 'dashboard', chrome: 'app' });
+    expect(appMarkup).not.toContain('href="/about">Built by Bryan Leonard</a>');
   });
 });
