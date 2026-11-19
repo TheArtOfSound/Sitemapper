@@ -179,3 +179,46 @@ describe('operator trust and truthful product boundaries', () => {
     expect(appMarkup).not.toContain('href="/about">Built by Bryan Leonard</a>');
   });
 });
+
+
+describe('scan-first editorial public experience', () => {
+  const markup = homeHtml({ runs: 27, pages: 908 });
+
+  it('puts a real scan form before secondary narrative or recorded video', () => {
+    const hero = markup.indexOf('id="sm-hero-title"');
+    const form = markup.indexOf('id="map-form"');
+    const nextSection = markup.indexOf('id="how-it-works"');
+    const video = markup.indexOf('<video controls');
+    expect(hero).toBeGreaterThan(0);
+    expect(form).toBeGreaterThan(hero);
+    expect(nextSection).toBeGreaterThan(form);
+    expect(video).toBeGreaterThan(nextSection);
+    expect(markup).toContain('action="/api/report"');
+    expect(markup).toContain('name="site" type="url"');
+    expect(markup).toContain('id="site"');
+    expect(markup).toContain("fetch('/api/scan?site='+encodeURIComponent(site)");
+    expect(markup).not.toContain('autoplay muted loop');
+  });
+
+  it('renders accurate limits, source-specific examples and actual dynamic stats', () => {
+    expect(markup).toContain('Up to 1,200 sitemap URLs inventoried and 40 live pages sampled per free scan.');
+    expect(markup).toContain('slow discovery is reported as inconclusive.');
+    expect(markup).toContain('27 surveys');
+    expect(markup).toContain('908 sitemap URLs discovered across checks');
+    expect(markup).toContain('href="/api/report?site=https%3A%2F%2Fwesearch.press"');
+    expect(markup).toContain('href="/api/report?site=https%3A%2F%2Fimagineqira.com"');
+  });
+
+  it('keeps pricing, account access, support links and public scope separate from the app', () => {
+    expect(markup).toContain('class="site-public"');
+    expect(markup).toContain('href="/pricing"');
+    expect(markup).toContain('href="/about"');
+    expect(markup).toContain('href="/login"');
+    expect(markup).toContain('href="/#how-it-works"');
+    expect(markup).toContain('Built by Bryan Leonard');
+    expect(markup).toContain('not a live report');
+    const workspace = shell({title:'Workspace',description:'Workspace',body:'content',chrome:'app'});
+    expect(workspace).toContain('class="app-shell"');
+    expect(workspace).not.toContain('class="site-public"');
+  });
+});
