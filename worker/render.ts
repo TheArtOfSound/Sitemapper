@@ -720,6 +720,187 @@ a.incident:hover,a.site-card:hover{text-decoration:none;color:inherit}
   .card,details.block,.score,.pack-file,.prose{background:#fff;border-color:#ccc;box-shadow:none}
   a{color:#06c}
 }
+
+/* SITEMAPPER EDITORIAL SYSTEM — 2026-11-19
+   Intent: clarity over chrome, action over video, evidence over invented scores.
+   Scoped to public pages. Signed-in app layouts, semantics, severity palettes and forms remain unchanged. */
+body.site-public{
+  --bg:#f7f4ed;--panel:#fffcf6;--line:#ddd9cd;--text:#1c2823;--mute:#5b675e;
+  --accent:#215344;--accent-bg:#e8efe8;--radius:11px;--btn-radius:6px;
+  background:var(--bg);color:var(--text);
+}
+.site-public .topbar{background:rgba(250,248,241,.96);border-bottom-color:#d5d8cb;backdrop-filter:blur(13px)}
+.site-public .topbar-inner{max-width:1260px;padding-top:13px;padding-bottom:13px}
+.site-public .brand{font:750 22px/1 var(--serif);letter-spacing:-.04em;color:#1b332a}
+.site-public .brand .mark{width:37px;height:37px}
+.site-public .nav{font:650 13px/1.2 var(--sans);flex-wrap:nowrap;gap:5px}
+.site-public .nav a{color:#485c50;padding:11px 12px;border-radius:5px}
+.site-public .nav a:hover,.site-public .nav a.on{color:#174f3e;background:#e7eee5}
+.site-public .nav .nav-login{border:1px solid #9caf9f;color:#1c4938;background:transparent;margin-left:10px;padding:11px 16px}
+.site-public .nav .nav-login:hover{background:#1d4939;color:#fff}
+.site-public .wrap.home{max-width:1260px;padding-top:0;padding-bottom:42px}
+.site-public .wrap:not(.home){max-width:880px}
+.site-public .wrap:not(.home) > h1{font:500 clamp(2.7rem,5.5vw,4.3rem)/.99 var(--serif);letter-spacing:-.05em;max-width:15ch;margin:13px 0 24px}
+.site-public .wrap:not(.home) .lede{max-width:56ch;font-size:17px;line-height:1.7;color:#56665a}
+.site-public .wrap:not(.home) .card{box-shadow:none;background:#fffcf7;border-color:#dadfd3}
+.site-public .wrap:not(.home) .card h2,.site-public .wrap:not(.home) .prose h2{font-family:var(--serif);font-size:clamp(1.4rem,3vw,1.85rem);font-weight:550;letter-spacing:-.03em;color:#1c3228}
+.site-public .owner-story{background:#edf0e5;border-color:#cad5c7}
+.site-public .owner-story h2{color:#1a3428}
+.site-public .owner-story p{color:#526257}
+.site-public .chip:hover{border-color:var(--accent)}
+.site-public .form-row button:hover{background:#183a2f}
+.site-public a:focus-visible,.site-public button:focus-visible,.site-public input:focus-visible,.site-public summary:focus-visible{outline:3px solid #b77c47;outline-offset:3px}
+.site-public .footer{margin-top:42px;padding-top:23px;border-color:#cbd5c7}
+.site-public .footer a{color:#2d5e49}
+.sm-hero{display:grid;grid-template-columns:minmax(0,1.16fr) minmax(310px,.84fr);gap:clamp(20px,3.4vw,45px);padding:clamp(38px,6vw,79px) 0 35px;align-items:stretch}
+.sm-hero-main{min-width:0;display:flex;flex-direction:column;align-items:stretch}
+.sm-overline{display:flex;align-items:center;gap:9px;font:750 11px/1.5 var(--mono);letter-spacing:.095em;text-transform:uppercase;color:#416c57;margin:0}
+.sm-status-pip{width:8px;height:8px;background:#3f8d68;border-radius:50%;box-shadow:0 0 0 4px #e3ece1;flex-shrink:0}
+.sm-overline-index{color:#9b9b88;font-weight:500}
+.site-public .sm-hero h1{font:500 clamp(3.9rem,6.3vw,6.9rem)/.94 var(--serif);letter-spacing:-.066em;color:#1b342b;margin:27px 0 24px;max-width:12ch}
+.sm-hero h1 em,.sm-section-heading h2 em,.sm-close h2 em{font-weight:400;color:#4e8269}
+.sm-hero-lead{max-width:54ch;font:400 clamp(16px,1.45vw,18px)/1.7 var(--sans);color:#516357;margin:0 0 27px}
+.sm-check{background:#fffcf7;border:1px solid #cbd5c8;padding:21px 21px 15px;border-radius:10px;box-shadow:0 5px 0 rgba(47,71,50,.045)}
+.sm-form label{display:block;font:750 12px/1.4 var(--sans);color:#1b3328;letter-spacing:.02em;margin-bottom:9px}
+.sm-form.form-row{display:block}
+.sm-form-controls{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+.sm-form-controls input{border:1px solid #c5d3c6;padding:15px 13px;font:15px/1.3 var(--sans);border-radius:5px;background:#fff;min-height:53px}
+.sm-form-controls input::placeholder{color:#8a988e}
+.sm-form-controls button{font:750 14px/1 var(--sans);min-height:53px;padding:0 22px;border-radius:5px;background:#215344;color:white;white-space:nowrap}
+.sm-form-controls button span{margin-left:6px;font-size:16px}
+.sm-form-note{font-size:12px;line-height:1.5;color:#37624b;margin:13px 0 0}
+.sm-form-note>span:first-child{color:#4c986b;font-size:9px}
+.sm-dot-sep{padding:0 4px;color:#8ea495}
+.sm-form-fine{font-size:11.5px;line-height:1.55;color:#68796a;margin:9px 0 0;max-width:65ch}
+.sm-try{display:flex;gap:10px 12px;flex-wrap:wrap;align-items:center;padding-top:21px;font:12px/1.5 var(--sans);color:#69786e}
+.sm-try .chip{background:transparent;color:#2a5c44;border:1px solid #cad7c8;font-weight:650;border-radius:5px;padding:9px 11px}
+.sm-evidence{display:flex;flex-direction:column;background:#172c23;border-radius:8px;color:#f5f3e9;padding:clamp(24px,3.1vw,39px);position:relative;overflow:hidden;min-width:0;border:1px solid #243d30}
+.sm-evidence:after{content:"";position:absolute;width:200px;height:200px;right:-100px;top:-110px;border:1px solid rgba(194,228,196,.13);border-radius:50%;box-shadow:0 0 0 35px rgba(194,228,196,.035),0 0 0 70px rgba(194,228,196,.024);pointer-events:none}
+.sm-evidence-top{display:flex;align-items:center;justify-content:space-between;gap:12px;font:650 10px/1.4 var(--mono);letter-spacing:.05em;color:#bbd7c2}
+.sm-evidence-mark{color:#e5f4c2;font-weight:750}
+.sm-evidence-label{color:#95ab98;text-align:right}
+.sm-evidence-intro{position:relative;margin:52px 0 26px;max-width:26ch}
+.sm-evidence-dash{display:block;font:400 36px/1 var(--serif);color:#c8dfa3}
+.sm-evidence-intro p{font:500 clamp(1.8rem,3vw,2.85rem)/1.06 var(--serif);letter-spacing:-.03em;color:#faf8ef;margin:12px 0 0}
+.sm-evidence-intro p i{color:#bdd9ba;font-weight:400}
+.sm-inspect{list-style:none;padding:0;margin:auto 0 0}
+.sm-inspect li{display:flex;gap:15px;align-items:center;border-top:1px solid #3b5444;padding:17px 0}
+.sm-inspect-count{font:600 11px/1 var(--mono);color:#a1c5a9;min-width:24px}
+.sm-inspect strong{font:650 15px/1.25 var(--sans);display:block;color:#f8f5ec}
+.sm-inspect small{font:12px/1.5 var(--sans);display:block;color:#b9c9b9;margin-top:4px}
+.sm-inspect-symbol{margin-left:auto;font:18px/1 var(--serif);color:#a5c6ab}
+.sm-evidence-foot{border-top:1px solid #3b5444;padding-top:18px;margin:5px 0 0;color:#cbddbc;font:650 11px/1.5 var(--mono);letter-spacing:.025em}
+.sm-evidence-ring{display:inline-block;border:1.5px solid #cee6b1;border-radius:50%;width:8px;height:8px;vertical-align:0;margin-right:5px}
+.sm-signal-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;border-top:1px solid #cdd7ca;border-bottom:1px solid #cdd7ca;padding:18px 0;margin-top:10px}
+.sm-signal-strip span{display:flex;align-items:center;gap:10px;padding:5px 12px;font:650 13px/1.3 var(--sans);color:#516756;border-right:1px solid #d1d8ca}
+.sm-signal-strip span:first-child{padding-left:0}
+.sm-signal-strip span:last-child{border:0}
+.sm-signal-strip b{font:600 11px/1 var(--mono);color:#729880}
+.sm-section{padding:clamp(58px,8vw,106px) 0;border-bottom:1px solid #d7d8ca}
+.sm-section-heading{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(250px,.75fr);gap:15px 55px;align-items:end;margin-bottom:34px}
+.sm-section-heading .sm-overline{grid-column:1/-1}
+.sm-section-heading h2,.sm-incident h2{font:500 clamp(2.85rem,5.1vw,5.4rem)/.99 var(--serif);letter-spacing:-.055em;color:#19352a;margin:0}
+.sm-section-heading p:last-child{color:#556a59;font:16px/1.7 var(--sans);max-width:43ch;margin:0 0 5px}
+.sm-how-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}
+.sm-step{background:#fffcf6;border:1px solid #d5ddd0;border-radius:7px;padding:27px 25px 22px;min-height:270px;display:flex;flex-direction:column}
+.sm-step-index{font:700 11px/1.4 var(--mono);letter-spacing:.08em;color:#6a8c78}
+.sm-step h3{font:500 clamp(1.7rem,2.7vw,2.45rem)/1.05 var(--serif);letter-spacing:-.035em;color:#19382b;margin:37px 0 12px}
+.sm-step p{font:14px/1.65 var(--sans);color:#5b6c5e;margin:0 0 22px}
+.sm-step-line{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:auto;font:650 10px/1.2 var(--mono);color:#658975;letter-spacing:.045em}
+.sm-step-line span:nth-child(even){color:#aabcae}
+.sm-incident{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:clamp(20px,5vw,70px);align-items:center}
+.sm-incident h2{font-size:clamp(2.5rem,4.3vw,4.6rem);margin:20px 0}
+.sm-incident-copy>p:not(.sm-overline){font:15px/1.75 var(--sans);color:#536a57}
+.sm-link-row{display:flex;gap:12px 22px;flex-wrap:wrap;margin-top:28px}
+.sm-link-row a{font:700 13px/1.5 var(--sans);color:#1c5a40;text-underline-offset:4px;text-decoration:underline}
+.sm-real-demo{border-radius:8px;overflow:hidden;border:1px solid #536753;background:#192b22;color:#eaf3e4}
+.sm-demo-head{display:flex;justify-content:space-between;border-bottom:1px solid #405743;padding:16px 20px;color:#bbd4ba;font:650 11px/1.4 var(--mono);letter-spacing:.05em}
+.sm-demo-details summary{cursor:pointer;display:flex;align-items:center;gap:18px;padding:31px 22px;list-style:none}
+.sm-demo-details summary::-webkit-details-marker{display:none}
+.sm-demo-details summary:hover{background:#233d2f}
+.sm-demo-details summary strong{display:block;font:500 clamp(1.35rem,2.3vw,1.95rem)/1.1 var(--serif);color:#f8f8ee}
+.sm-demo-details summary small{display:block;font:12px/1.55 var(--sans);color:#bacbbc;margin-top:8px}
+.sm-play-icon{display:grid;place-items:center;flex:none;width:49px;height:49px;border:1px solid #b0cfac;border-radius:50%;font-size:14px;color:#ebf5cf}
+.sm-demo-chevron{font:24px/1 var(--serif);color:#cedeca;margin-left:auto}
+.sm-demo-details[open] .sm-demo-chevron{transform:rotate(180deg)}
+.sm-demo-details video{width:100%;aspect-ratio:16/9;display:block;background:#101b13;object-fit:contain}
+.sm-demo-footer{display:flex;justify-content:space-between;gap:15px;flex-wrap:wrap;padding:16px 20px;border-top:1px solid #405743;font:600 10px/1.5 var(--mono);letter-spacing:.03em;color:#a7c3a9}
+.sm-limits .sm-section-heading{grid-template-columns:1fr}
+.sm-limit-columns{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.sm-limit-col{padding:25px 0;border-top:2px solid #305f48}
+.sm-limit-col:last-child{border-color:#bc9274}
+.sm-limit-tag{font:750 11px/1.5 var(--mono);letter-spacing:.07em;color:#396c4c;margin:0 0 22px}
+.sm-limit-col:last-child .sm-limit-tag{color:#977053}
+.sm-limit-col ul{list-style:none;margin:0;padding:0}
+.sm-limit-col li{position:relative;padding:13px 0 13px 23px;border-bottom:1px solid #d6dbce;color:#4f6253;font:14px/1.5 var(--sans)}
+.sm-limit-col li:before{content:'→';position:absolute;left:0;color:#668d70}
+.sm-close{display:grid;grid-template-columns:1.5fr .5fr;align-items:end;gap:25px;background:#e8e9dc;border:1px solid #d0d6c7;padding:clamp(25px,4vw,48px);border-radius:9px;margin:55px 0 25px}
+.sm-close h2{font:500 clamp(2.55rem,4.4vw,4.75rem)/1 var(--serif);letter-spacing:-.05em;max-width:15ch;color:#1b392b;margin:16px 0}
+.sm-close p:not(.sm-overline){font:15px/1.65 var(--sans);color:#536657;max-width:55ch;margin:0}
+.sm-close-actions{display:flex;flex-direction:column;gap:12px;min-width:190px}
+.sm-close-primary{background:#1b4b36;color:#fff!important;display:flex;justify-content:space-between;gap:10px;align-items:center;text-decoration:none!important;border-radius:5px;padding:17px 20px;font:700 13px/1.4 var(--sans)}
+.sm-close-primary:hover{background:#113523}
+.sm-close-secondary{text-align:center;color:#305841!important;font:700 13px/1.5 var(--sans);padding:8px}
+.sm-public-proof{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px 20px;color:#617064;font:11.5px/1.6 var(--sans);padding:9px 0 0}
+.sm-public-proof strong{color:#344d3b}
+.sm-public-proof a{text-decoration:underline;text-underline-offset:3px}
+@media(max-width:1040px){
+  .sm-hero{grid-template-columns:minmax(0,1.06fr) minmax(290px,.94fr);gap:24px}
+  .site-public .sm-hero h1{font-size:clamp(3.65rem,6.9vw,5.4rem)}
+  .sm-evidence{padding:22px}
+  .sm-evidence-intro{margin-top:35px}
+  .sm-inspect li{padding:13px 0}
+}
+@media(max-width:800px){
+  .site-public .nav{width:auto;flex-wrap:wrap;justify-content:flex-end;gap:0}
+  .site-public .topbar-inner{flex-wrap:wrap;gap:8px}
+  .sm-hero{grid-template-columns:1fr;padding-top:38px;gap:23px}
+  .site-public .sm-hero h1{font-size:clamp(3.5rem,9vw,5.5rem)}
+  .sm-evidence{min-height:430px}
+  .sm-evidence-intro{margin:21px 0 8px}
+  .sm-section-heading,.sm-incident{grid-template-columns:1fr}
+  .sm-section-heading p:last-child{max-width:66ch}
+  .sm-signal-strip{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:10px}
+  .sm-signal-strip span:nth-child(2){border:0}
+}
+@media(max-width:640px){
+  .site-public .topbar-inner{padding:12px 16px 9px;justify-content:space-between}
+  .site-public .brand{font-size:21px}
+  .site-public .nav{width:100%;display:grid;grid-template-columns:repeat(4,1fr);gap:2px;justify-items:stretch;text-align:center}
+  .site-public .nav a{font-size:12px;min-height:42px;padding:10px 5px;justify-content:center}
+  .site-public .nav .nav-login{margin:0;grid-column:span 4;min-height:39px;margin-top:3px}
+  .site-public .wrap.home{padding-top:0;padding-left:17px;padding-right:17px}
+  .sm-hero{padding:26px 0 22px;gap:20px}
+  .site-public .sm-hero h1{font-size:clamp(3.25rem,12vw,4.3rem);line-height:.98;margin:19px 0}
+  .sm-hero-lead{font-size:15px;line-height:1.65;margin-bottom:18px}
+  .sm-check{padding:17px 14px 14px}
+  .sm-form-controls{grid-template-columns:1fr}
+  .sm-form-controls button{width:100%;min-height:51px}
+  .sm-form-controls input{min-height:51px}
+  .sm-try{padding-top:13px}
+  .sm-evidence{min-height:390px;padding:21px}
+  .sm-evidence-intro{margin-top:20px}
+  .sm-evidence-intro p{font-size:2.1rem}
+  .sm-evidence-label{font-size:9px}
+  .sm-signal-strip{gap:10px;padding:12px 0}
+  .sm-signal-strip span{padding:5px 6px;font-size:12px}
+  .sm-section{padding:53px 0}
+  .sm-section-heading h2,.sm-incident h2{font-size:clamp(2.6rem,9vw,3.8rem)}
+  .sm-how-grid,.sm-limit-columns{grid-template-columns:1fr}
+  .sm-step{min-height:190px;padding:21px}
+  .sm-step h3{margin-top:21px}
+  .sm-close{display:block;padding:24px 19px;margin:34px 0 15px}
+  .sm-close h2{font-size:2.8rem}
+  .sm-close-actions{margin-top:23px}
+}
+@media(max-width:390px){
+  .sm-overline-index{display:none}
+  .site-public .sm-hero h1{font-size:3.3rem}
+  .site-public .nav a{font-size:11px}
+}
+@media(prefers-reduced-motion:reduce){.site-public *{scroll-behavior:auto!important;transition:none!important}}
+@media print{.site-public .sm-evidence,.site-public .sm-real-demo{background:white;color:#111;border:1px solid #aaa}.site-public .sm-inspect strong,.site-public .sm-evidence-intro p{color:#111}}
+
 `;
 }
 
@@ -754,17 +935,15 @@ function railSvg(kind: 'home' | 'sites' | 'changes' | 'alerts' | 'settings'): st
 }
 
 function publicNav(path: string): string {
-  const item = (href: string, label: string, active: boolean) =>
-    `<a href="${href}"${active ? ' class="on"' : ''}>${label}</a>`;
+  const item = (href: string, label: string, active: boolean, cls = '') =>
+    `<a href="${href}"${active ? ' aria-current="page" class="on '+cls+'"' : cls ? ' class="'+cls+'"' : ''}>${label}</a>`;
   return `<nav class="nav" aria-label="Primary">
-      ${item('/', 'Scan', path === '/' || path.startsWith('/api/report') || path.startsWith('/r/'))}
-      ${item('/about', 'About', path.startsWith('/about'))}
-      ${item('/compare', 'Compare', path.startsWith('/compare'))}
-      ${item('/guides/xml-sitemap-checker', 'Guides', path.startsWith('/guides'))}
-      ${item('/tools/sitemap-checker', 'Tools', path.startsWith('/tools'))}
-      ${item('/pricing', 'Pricing', path.startsWith('/pricing'))}
-      <a href="/login">Sign in</a>
-    </nav>`;
+    ${item('/', 'Scan a site', path === '/' || path.startsWith('/api/report') || path.startsWith('/r/'))}
+    ${item('/#how-it-works', 'How it works', false)}
+    ${item('/pricing', 'Pricing', path.startsWith('/pricing'))}
+    ${item('/about', 'About', path.startsWith('/about'))}
+    ${item('/login', 'Sign in', path.startsWith('/login'), 'nav-login')}
+  </nav>`;
 }
 
 function appRail(path: string, userEmail?: string): string {
@@ -908,14 +1087,14 @@ ${appTopbar(opts.userEmail, opts.workspaceName, opts.plan)}
 <meta name="twitter:title" content="${escapeHtml(opts.title)}">
 <meta name="twitter:description" content="${escapeHtml(opts.description)}">
 <meta name="twitter:image" content="${ORIGIN}/brand/og.jpg">
-<meta name="theme-color" content="#f5f6f8">
+<meta name="theme-color" content="#f7f4ed">
 <link rel="icon" href="/brand/favicon-32.png" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" sizes="180x180">
 ${fonts()}
 <style>${css()}</style>
 ${jsonLd}
 </head>
-<body${isApp ? ' class="app-shell"' : ''}>
+<body${isApp ? ' class="app-shell"' : ' class="site-public"'}>
 <div class="loading" id="loading" aria-live="polite">
   <div class="box">
     <div class="pulse" aria-hidden="true"></div>
@@ -1216,69 +1395,93 @@ function stepRail(active: 1 | 2 | 3): string {
 
 export function homeHtml(stats: { runs: number; pages: number }): string {
   const body = `
-<div class="hero-stage">
-  <video id="hero-demo" autoplay muted loop playsinline disablepictureinpicture
-    preload="metadata" poster="/brand/hero.jpg?v=3"
-    aria-label="Sitemapper product demo of the oortstack.com 1,361 to 0 sitemap incident">
-    <source src="/brand/hero.mp4?v=3" type="video/mp4">
-    <track kind="captions" src="/brand/hero.vtt?v=3" srclang="en" label="Captions" default>
-  </video>
-  <div class="hero-cap" id="hero-cap"><b>SITEMAPPER</b><span>Your website can break without looking broken.</span></div>
-  <button type="button" class="hero-sound" id="hero-sound" aria-pressed="false">Sound</button>
-</div>
-<p class="kicker">Website change detection and safety</p>
-<h1>See what changed while the evidence is still fresh.</h1>
-<p class="lede">Free check of any public site — no account. Monitoring compares sitemap inventory, live page signals, and critical journeys between crawls, then shows the likely risk and where to investigate.</p>
-
-<div class="card" id="map">
-  <div class="card-head"><h2>Check a public site</h2></div>
-  <p>Any homepage. The checker is free. Keep the snapshot if you want a clear comparison after the next deploy.</p>
-  <form class="form-row" id="map-form" action="/api/report" method="get" role="search">
-    <label class="visually-hidden" for="site" style="position:absolute;clip:rect(0,0,0,0);width:1px;height:1px;overflow:hidden">Site URL</label>
-    <input id="site" name="site" type="url" inputmode="url" autocomplete="url" required
-      placeholder="https://example.com">
-    <button type="submit">Check site</button>
-  </form>
-  <p class="hint">${stats.runs.toLocaleString()} public checks · ${stats.pages.toLocaleString()} sitemap URLs found across checks · preview cap 1,200 sitemap URLs / 40 live page checks. You’ll see robots → sitemap inventory → live sample. Timing depends on origin and sitemap size; slow discovery is reported as inconclusive.</p>
-  <div class="demos">
-    <a class="chip" href="/api/report?site=https%3A%2F%2Fwesearch.press">Demo: WeSearch</a>
-    <a class="chip" href="/api/report?site=https%3A%2F%2Fimagineqira.com">Demo: thin sitemap</a>
-    <a class="chip" href="/pricing">Pricing</a>
+<!-- Editorial 2026: one clear job, the working scan is the primary action. -->
+<section class="sm-hero" aria-labelledby="sm-hero-title">
+  <div class="sm-hero-main">
+    <p class="sm-overline"><span class="sm-status-pip" aria-hidden="true"></span> WEBSITE CHANGE INTELLIGENCE <span class="sm-overline-index">/ FREE FIRST CHECK</span></p>
+    <h1 id="sm-hero-title">Your site changed.<br><em>Know what broke.</em></h1>
+    <p class="sm-hero-lead">Find missing sitemap pages, risky indexing changes, and errors in a live page sample. Start with a free scan of any public site. No account needed.</p>
+    <div class="sm-check" id="map">
+      <form class="sm-form form-row" id="map-form" action="/api/report" method="get" role="search">
+        <label for="site">Your website URL</label>
+        <div class="sm-form-controls">
+          <input id="site" name="site" type="url" inputmode="url" autocomplete="url" required placeholder="https://yourwebsite.com" aria-describedby="sm-input-help">
+          <button type="submit">Check my site <span aria-hidden="true">↗</span></button>
+        </div>
+      </form>
+      <p class="sm-form-note" id="sm-input-help"><span aria-hidden="true">●</span> Free public scan <span class="sm-dot-sep" aria-hidden="true">·</span> No signup <span class="sm-dot-sep" aria-hidden="true">·</span> No install</p>
+      <p class="sm-form-fine">Up to 1,200 sitemap URLs inventoried and 40 live pages sampled per free scan. Timing depends on origin and sitemap size; slow discovery is reported as inconclusive.</p>
+    </div>
+    <div class="sm-try">
+      <span>Want to see it in action?</span>
+      <a class="chip" href="/api/report?site=https%3A%2F%2Fwesearch.press">Scan WeSearch ↗</a>
+      <a class="chip" href="/api/report?site=https%3A%2F%2Fimagineqira.com">Scan Qira ↗</a>
+    </div>
   </div>
+  <aside class="sm-evidence" aria-label="What the scan investigates">
+    <div class="sm-evidence-top"><span class="sm-evidence-mark">SM / FIELD NOTES</span><span class="sm-evidence-label">WHAT WE LOOK FOR</span></div>
+    <div class="sm-evidence-intro">
+      <span class="sm-evidence-dash" aria-hidden="true">↘</span>
+      <p>A website can <i>look fine</i> while the important paths underneath it quietly change.</p>
+    </div>
+    <ol class="sm-inspect">
+      <li><span class="sm-inspect-count">01</span><div><strong>Sitemap inventory</strong><small>Were important URLs removed?</small></div><span class="sm-inspect-symbol" aria-hidden="true">↗</span></li>
+      <li><span class="sm-inspect-count">02</span><div><strong>Live page sample</strong><small>Which pages now return errors?</small></div><span class="sm-inspect-symbol" aria-hidden="true">↗</span></li>
+      <li><span class="sm-inspect-count">03</span><div><strong>Indexing signals</strong><small>Did robots, canonical, or noindex change?</small></div><span class="sm-inspect-symbol" aria-hidden="true">↗</span></li>
+      <li><span class="sm-inspect-count">04</span><div><strong>Critical journeys</strong><small>Can the pages you care about still respond?</small></div><span class="sm-inspect-symbol" aria-hidden="true">↗</span></li>
+    </ol>
+    <p class="sm-evidence-foot"><span class="sm-evidence-ring" aria-hidden="true"></span> Evidence first. Assumptions labeled.</p>
+  </aside>
+</section>
+
+<div class="sm-signal-strip" aria-label="Scan service details">
+  <span><b>01</b> Public URL</span>
+  <span><b>02</b> Inspect evidence</span>
+  <span><b>03</b> Fix what matters</span>
+  <span><b>04</b> Keep watching</span>
 </div>
 
-<div class="pipeline" aria-label="What Sitemapper watches">
-  <div><b>Revenue</b><span>Checkout and critical journeys still load.</span></div>
-  <div><b>Conversion</b><span>Pricing and signup pages did not 404.</span></div>
-  <div><b>Acquisition</b><span>Sitemaps, robots, canonicals, noindex.</span></div>
-  <div><b>Operations</b><span>What changed after today’s deploy.</span></div>
-</div>
-
-<div class="card">
-  <div class="card-head"><h2>A missing sitemap URL is a todo. A dead checkout is a business incident.</h2></div>
-  <p>A deploy can ship noindex, hide a sitemap, or return an error on checkout while the rest of the site still looks normal. Consecutive crawl evidence makes the affected journey and likely risk visible without claiming measured traffic or revenue impact.</p>
-  <p>Keep this snapshot as a baseline. Monitoring compares later crawls, groups changes, and labels the affected journey and likely risk. Builder+ can send email alerts.</p>
-  <div class="actions"><a class="btn primary" href="/pricing">Monitor the next deploy</a></div>
-</div>
-
-<div class="dash-grid">
-  <div class="card">
-    <div class="card-head"><h2>Monitoring catches the next incident</h2></div>
-    <p>Free monitors one site daily and keeps 14 days of snapshots. Builder monitors up to five sites, keeps 90 days, and adds email alerts and CI guardrails.</p>
-    <p class="hint" style="margin-top:12px">After the check, choose <strong style="color:var(--text)">Monitor this site</strong> to keep the baseline.</p>
+<section class="sm-section sm-how" id="how-it-works" aria-labelledby="sm-how-title">
+  <div class="sm-section-heading"><p class="sm-overline">THE METHOD / 01</p><h2 id="sm-how-title">An answer you can<br><em>act on.</em></h2><p>Not another dashboard full of vague risk scores. Understand what was observed, what it means, and what to inspect next.</p></div>
+  <div class="sm-how-grid">
+    <article class="sm-step"><span class="sm-step-index">01 / SCAN</span><h3>See the structure.</h3><p>Discover sitemap and robots data, then examine a live sample of your publicly accessible pages.</p><div class="sm-step-line"><span>ROBOTS</span><span>→</span><span>XML</span><span>→</span><span>PAGES</span></div></article>
+    <article class="sm-step"><span class="sm-step-index">02 / UNDERSTAND</span><h3>Find the change.</h3><p>Review what was actually fetched, the warning signals, and the limits of the evidence.</p><div class="sm-step-line"><span>OBSERVE</span><span>→</span><span>COMPARE</span></div></article>
+    <article class="sm-step"><span class="sm-step-index">03 / ACT</span><h3>Protect the next deploy.</h3><p>Keep a baseline, monitor later changes, and add alerts or CI checks when your team needs them.</p><div class="sm-step-line"><span>FIX</span><span>→</span><span>MONITOR</span></div></article>
   </div>
-  <div class="card">
-    <div class="card-head"><h2>CI is a different buyer</h2></div>
-    <p>A founder who checks once a month will not pay to fail deploys. A team that already shipped a broken production site will. GitHub Action / CLI guard is on Builder+ for that buyer.</p>
-    <p class="hint" style="margin-top:12px">What changed in this deployment?</p>
+</section>
+
+<section class="sm-section sm-incident" aria-labelledby="sm-incident-title">
+  <div class="sm-incident-copy"><p class="sm-overline">THE REAL PROBLEM / 02</p><h2 id="sm-incident-title">A green homepage tells you almost nothing.</h2><p>A deployment can remove a sitemap, break a signup path, or change the signals search engines read while the top of the site still loads.</p><p>That is why Sitemapper captures the underlying evidence, not just a homepage screenshot.</p><div class="sm-link-row"><a href="/compare">Compare the methods ↗</a><a href="/guides/xml-sitemap-checker">Read the practical guide ↗</a></div></div>
+  <div class="sm-real-demo">
+    <div class="sm-demo-head"><span>RECORDED INCIDENT / OORTSTACK</span><span aria-hidden="true">● ● ●</span></div>
+    <details class="sm-demo-details"><summary><span class="sm-play-icon" aria-hidden="true">▶</span><span><strong>Watch what changed underneath.</strong><small>A recorded example from a sitemap incident, not a live report.</small></span><span class="sm-demo-chevron" aria-hidden="true">⌄</span></summary>
+      <video controls playsinline preload="none" poster="/brand/hero.jpg?v=3" aria-label="Recorded Sitemapper incident demonstration">
+        <source src="/brand/hero.mp4?v=3" type="video/mp4">
+        <track kind="captions" src="/brand/hero.vtt?v=3" srclang="en" label="Captions" default>
+        This browser does not support inline video. <a href="/brand/hero.mp4?v=3">Open the recording</a>.
+      </video>
+    </details>
+    <div class="sm-demo-footer"><span>NO FAKE SUCCESS METRICS</span><span>DISCOVERY → SAMPLE → EVIDENCE</span></div>
   </div>
-</div>
+</section>
+
+<section class="sm-section sm-limits" aria-labelledby="sm-limits-title">
+  <div class="sm-section-heading"><p class="sm-overline">WHAT YOU GET / 03</p><h2 id="sm-limits-title">Clear scope.<br><em>No mystery claims.</em></h2></div>
+  <div class="sm-limit-columns"><div class="sm-limit-col"><p class="sm-limit-tag"><span aria-hidden="true">✓</span> WHAT IT CHECKS</p><ul><li>Accessible robots.txt and XML sitemap sources</li><li>Public URL inventory and sampled page status</li><li>Canonical, metadata, and indexability signals</li><li>Optional comparisons and critical journey paths</li></ul></div><div class="sm-limit-col"><p class="sm-limit-tag"><span aria-hidden="true">—</span> WHAT IT DOESN'T PROVE</p><ul><li>That every page on a site was tested</li><li>That Google has indexed a particular page</li><li>That a site passed a security or uptime audit</li><li>That a change caused a measured revenue loss</li></ul></div></div>
+</section>
+
+<section class="sm-close" aria-labelledby="sm-close-title">
+  <div><p class="sm-overline">READY FOR THE NEXT DEPLOY?</p><h2 id="sm-close-title">Your baseline is only useful if you <em>keep checking.</em></h2><p>Start free. Add daily monitoring, alerts, or deployment guardrails when the evidence matters to your operation.</p></div>
+  <div class="sm-close-actions"><a class="sm-close-primary" href="/pricing">See monitoring options <span aria-hidden="true">↗</span></a><a class="sm-close-secondary" href="/about">Who builds this? →</a></div>
+</section>
+
+<div class="sm-public-proof"><span><strong>Built by Bryan Leonard</strong> · <a href="https://imagineqira.com/bryanleonard/?view=systems">View the builder</a></span><span>Live check counts: ${stats.runs.toLocaleString()} surveys · ${stats.pages.toLocaleString()} sitemap URLs discovered across checks</span></div>
 `;
 
   const markup = shell({
-    title: 'Sitemapper — catch website changes before they cost you.',
+    title: 'Sitemapper — scan your website and see what changed.',
     description:
-      'Website change detection and safety. Free public check, then monitor pages, search visibility, and critical journeys after deploys.',
+      'Free public website scan for sitemap, page and indexability problems. Save a baseline and monitor changes after deploys.',
     body,
     path: '/',
     jsonLd: [
