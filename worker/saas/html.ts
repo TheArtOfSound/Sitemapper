@@ -145,7 +145,6 @@ export function pricingHtml(user?: SessionUser | null): string {
           <li>${plan.api ? 'API keys' : 'No API'}</li>
           <li>${plan.teamMembers > 1 ? `${plan.teamMembers} team seats` : 'Solo workspace'}</li>
           <li>${plan.brandedReports ? 'Branded client reports' : 'Sitemapper-branded reports'}</li>
-        </ul>
         </ul></details>
         <div class="sm-price-actions actions">${cta}</div>
       </article>`;
