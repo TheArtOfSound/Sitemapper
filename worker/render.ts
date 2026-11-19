@@ -1009,6 +1009,27 @@ body.site-public{
 @media(max-width:720px){.site-public .sm-compare-grid{grid-template-columns:1fr}.site-public .sm-compare-item{min-height:0}.site-public .sm-compare-item h2{margin-top:16px}.site-public .sm-plan-intro{display:block}.site-public .sm-plan-intro p{margin-top:14px}.site-public .sm-pricing-intro,.site-public .sm-compare-intro{padding:33px 0 25px}}
 @media(max-width:580px){.site-public .sm-plan-grid{grid-template-columns:1fr}.site-public .sm-price-card-head{min-height:0}.site-public .sm-price-outcome{min-height:0}.site-public .sm-pricing-intro h1,.site-public .sm-compare-intro h1{font-size:clamp(2.65rem,10.3vw,4rem)}.site-public .sm-compare-clarity{display:block}.site-public .sm-compare-clarity>span{display:block;margin-bottom:14px}.site-public .sm-compare-clarity a{display:block;margin-top:18px}}
 
+/* Final usability pass: get prices on screen quickly and use the builder's real portrait. */
+.site-public .sm-pricing-intro{padding:36px 0 25px}
+.site-public .sm-pricing-intro h1{font-size:clamp(2.85rem,5vw,4.7rem);max-width:21ch;margin:18px 0 15px}
+.site-public .sm-pricing-flow{display:none}
+.site-public .sm-plan-intro{padding:25px 0 17px}
+.site-public .sm-pricing-lede{max-width:64ch}
+.site-public .owner-story__layout{grid-template-columns:158px minmax(0,1fr);align-items:start;gap:26px}
+.site-public .sm-builder-photo{width:158px;height:182px;object-fit:cover;object-position:center top;border-radius:7px;border:1px solid #d3ddef}
+.site-public .wrap:not(.home) .owner-story h2,
+.site-public .wrap:not(.home) .card h2{font-family:var(--sans);font-weight:600;letter-spacing:-.045em}
+@media(max-width:650px){
+ .site-public .sm-pricing-intro{padding:26px 0 18px}
+ .site-public .sm-pricing-intro h1{font-size:clamp(2.7rem,9.7vw,3.55rem)}
+ .site-public .sm-plan-intro{padding:21px 0 15px}
+ .site-public .sm-plan-intro h2{font-size:1.7rem}
+ .site-public .sm-pricing-lede{font-size:14px;line-height:1.6}
+ .site-public .owner-story__layout{grid-template-columns:92px minmax(0,1fr);gap:14px}
+ .site-public .sm-builder-photo{width:92px;height:110px}
+}
+@media(max-width:390px){.site-public .owner-story__layout{display:block}.site-public .sm-builder-photo{margin:0 0 15px}}
+
 `;
 }
 
@@ -1949,6 +1970,7 @@ export function aboutHtml(): string {
 <div class="card owner-story">
   <p class="kicker">A real person behind the tool</p>
   <div class="owner-story__layout">
+    <img class="sm-builder-photo" src="https://imagineqira.com/assets/bryan-leonard-20261117.webp" alt="Bryan Leonard, builder of Sitemapper" width="158" height="182" loading="lazy" decoding="async">
     <div>
       <h2>Built by Bryan Leonard.</h2>
       <p>Sitemapper is developed by <a href="https://imagineqira.com/bryanleonard/?view=systems" rel="noopener noreferrer">Bryan Leonard</a>, co-founder of Qira, as part of the Oortstack tool family. It comes from operating websites and needing reliable answers after a release: what changed, what broke, and what should be checked first.</p>
