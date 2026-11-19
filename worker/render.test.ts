@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { agentPackMarkdown, buildAgentPack } from './agent-pack.js';
 import { buildInsights } from './insights.js';
-import { aboutHtml, homeHtml, reportHtml, shell, type Result } from './render.js';
+import { aboutHtml, compareHtml, homeHtml, reportHtml, shell, type Result } from './render.js';
 
 function resultWithScores(scores: Result['scores']): Result {
   const site = 'https://example.com';
@@ -220,5 +220,26 @@ describe('scan-first editorial public experience', () => {
     const workspace = shell({title:'Workspace',description:'Workspace',body:'content',chrome:'app'});
     expect(workspace).toContain('class="app-shell"');
     expect(workspace).not.toContain('class="site-public"');
+  });
+});
+
+describe('Sitemapper topology identity and comparison flow', () => {
+  it('makes the illustration explicit rather than presenting it as observed output', () => {
+    const page = homeHtml({runs:27,pages:908});
+    expect(page).toContain('ILLUSTRATIVE ROUTE MAP');
+    expect(page).toContain('ILLUSTRATIVE EXAMPLE');
+    expect(page).toContain('role="img" aria-label="Illustration:');
+    expect(page).toContain('id="map-form"');
+    expect(page).not.toContain('autoplay muted loop');
+  });
+  it('replaces the hard-to-read horizontal comparison table with three guided use cases', () => {
+    const page = compareHtml();
+    expect(page).toContain('sm-compare-grid');
+    expect(page).toContain('Check now.');
+    expect(page).toContain('Watch the change.');
+    expect(page).toContain('Build a guardrail.');
+    expect(page).toContain('Detection is not proof of business impact');
+    expect(page).toContain('href="/pricing"');
+    expect(page).not.toContain('<table class="data">');
   });
 });
