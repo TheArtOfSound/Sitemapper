@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addSiteHtml, dashboardHtml, incidentHtml, siteHtml, sitesListHtml } from './html.js';
+import { addSiteHtml, dashboardHtml, incidentHtml, pricingHtml, siteHtml, sitesListHtml } from './html.js';
 
 const user = {
   userId: 'usr_demo',
@@ -188,5 +188,31 @@ describe('workspace CTAs', () => {
     expect(markup).toContain('Add site');
     expect(markup).toContain('No sites yet');
     expect(markup).not.toMatch(/class="btn primary"[^>]*href="\/"/);
+  });
+});
+
+describe('pricing clarity without bypassing billing', () => {
+  it('shows four plan choices, readable limits and real enrollment links', () => {
+    const markup = pricingHtml(null);
+    expect(markup).toContain('Start free.');
+    expect(markup).toContain('Monitor what matters.');
+    expect((markup.match(/class="sm-price-card /g) || []).length).toBe(4);
+    expect((markup.match(/class="sm-plan-details"/g) || []).length).toBe(4);
+    for (const tier of ['free','builder','pro','agency']) {
+      expect(markup).toContain('PLAN / '+tier.toUpperCase());
+    }
+    expect(markup).toContain('href="/login?next=%2Fapp%2Fbilling%3Fplan%3Dbuilder"');
+    expect(markup).toContain('href="/login?next=%2Fapp%2Fbilling%3Fplan%3Dpro"');
+    expect(markup).not.toContain('Most used');
+  });
+  it('preserves server-side checkout form actions for signed-in customers', () => {
+    const markup = pricingHtml(user);
+    expect(markup).toContain('action="/app/billing/checkout"');
+    expect(markup).toContain('name="interval" value="month"');
+    expect(markup).toContain('name="interval" value="year"');
+    expect(markup).toContain('name="plan" value="builder"');
+    expect(markup).toContain('name="plan" value="pro"');
+    expect(markup).toContain('name="plan" value="agency"');
+    expect(markup).toContain('class="app-shell"');
   });
 });

@@ -108,11 +108,12 @@ ${notice?.error ? `<div class="card"><p><strong>${escapeHtml(notice.error)}</str
 }
 
 export function pricingHtml(user?: SessionUser | null): string {
+  const descriptions: Record<PlanId, string> = { free: 'An honest starting point for one website.', builder: 'Alerts and safeguards for frequent deployments.', pro: 'Faster checks and integrated workflows.', agency: 'Oversight for multiple client sites.' };
   const cards = (Object.keys(PLANS) as PlanId[])
     .map((id) => {
       const plan = PLANS[id];
       const price = PLAN_PRICES_USD[id];
-      const featured = id === 'builder' ? ' <span class="pill">Most used</span>' : '';
+      const featured = id === 'builder' ? ' <span class="sm-price-for">FOR REGULAR DEPLOYS</span>' : '';
       const priceMark = price.monthly
         ? `<span class="plan-price"><b>$${price.monthly}</b> / month</span>`
         : '<span class="plan-price"><b>Free</b></span>';
@@ -123,37 +124,47 @@ export function pricingHtml(user?: SessionUser | null): string {
             ? `<form method="post" action="/app/billing/checkout"><input type="hidden" name="plan" value="${id}"><input type="hidden" name="interval" value="month"><button class="btn primary" type="submit">Start ${escapeHtml(price.label)}</button></form>
                <form method="post" action="/app/billing/checkout"><input type="hidden" name="plan" value="${id}"><input type="hidden" name="interval" value="year"><button class="btn" type="submit">$${price.annual}/yr</button></form>`
             : `<a class="btn primary" href="/login?next=${encodeURIComponent(`/app/billing?plan=${id}`)}">Start ${escapeHtml(price.label)}</a>`;
-      return `<div class="card">
-        <div class="card-head">
+      return `<article class="sm-price-card ${id === 'builder' ? 'sm-price-card--highlight' : ''}">
+        <div class="sm-price-card-head">
+          <span class="sm-plan-id">PLAN / ${id.toUpperCase()}</span>
           <h2>${escapeHtml(price.label)}${featured}</h2>
+          <p class="sm-price-outcome">${escapeHtml(descriptions[id])}</p>
           ${priceMark}
         </div>
-        <ul class="list">
+        <ul class="sm-price-essentials">
           <li>${plan.sites} site${plan.sites === 1 ? '' : 's'}</li>
           <li>${plan.monitoredUrls.toLocaleString()} monitored URLs</li>
           <li>${plan.frequencyMinutes >= 1440 ? 'Daily' : `Every ${plan.frequencyMinutes / 60}h`} change checks</li>
           <li>${plan.historyDays}-day history</li>
           <li>${plan.emailAlerts ? 'Email alerts' : 'No email alerts'}</li>
+        </ul>
+        <details class="sm-plan-details"><summary>All plan details <span aria-hidden="true">+</span></summary><ul class="list">
           <li>${plan.webhooks ? 'Webhooks' : 'No webhooks'}${plan.slack ? ' + Slack' : ''}</li>
           <li>${plan.gsc ? 'Google Search Console' : 'GSC: not included'}</li>
           <li>${plan.ciGuard || plan.github ? 'GitHub Action / CI guardrail' : 'CI guardrail: not included'}</li>
           <li>${plan.api ? 'API keys' : 'No API'}</li>
           <li>${plan.teamMembers > 1 ? `${plan.teamMembers} team seats` : 'Solo workspace'}</li>
           <li>${plan.brandedReports ? 'Branded client reports' : 'Sitemapper-branded reports'}</li>
-        </ul>
-        <div class="actions">${cta}</div>
-      </div>`;
+        </ul></details>
+        <div class="sm-price-actions actions">${cta}</div>
+      </article>`;
     })
     .join('');
   const body = `
-<p class="kicker">Pricing</p>
-<h1 class="serif">Check and monitor one site free. Upgrade for alerts, CI, and more capacity.</h1>
-<p class="lede">Sitemapper compares each crawl with the previous snapshot across sitemap URLs, live page signals, and critical journeys. Free includes one daily monitor with 14-day history. Builder adds email alerts and CI; Pro and Agency add faster checks and integrations.</p>
-<div class="plan-grid">${cards}</div>
-<p class="hint">Free: 1 site, 2,000 monitored URLs, daily checks, 14-day history, no alerts or CI. Builder: 5 sites, 10,000 monitored URLs, daily checks, 90-day history, email alerts, and CI. Pro and Agency add faster checks and integrations. Limits are enforced on the server. Sitemap submission is a hint, not proof of Google indexing.</p>`;
+<section class="sm-pricing-intro" aria-labelledby="sm-pricing-title">
+  <p class="sm-overline">SITEMAPPER / PRICING</p>
+  <h1 id="sm-pricing-title">Start free.<br><span>Monitor what matters.</span></h1>
+  <p class="sm-pricing-lede">Run a public scan without an account. If you need to know what changes after a release, save a daily baseline for free or choose the additional safeguards your team actually uses.</p>
+  <div class="sm-pricing-flow"><span><b>01</b> Scan</span><span><b>02</b> Save a baseline</span><span><b>03</b> Add guardrails</span></div>
+</section>
+<section class="sm-plan-section" aria-label="Monitoring plans">
+  <div class="sm-plan-intro"><h2>Four plans. Clear limits.</h2><p>Start with site count, frequency, history and alerts. Expand a plan to compare the technical features.</p></div>
+  <div class="sm-plan-grid">${cards}</div>
+</section>
+<div class="sm-price-note"><strong>What this does not prove.</strong> A successful page response does not establish Google indexing. Blocked or slow sites can produce incomplete evidence. <a href="/about">Learn about our methods and operator ↗</a></div>`;
   return appShell({
     title: 'Pricing · Sitemapper',
-    description: 'Free sitemap checker. Builder $19, Pro $49, Agency $149 to monitor deploy diffs — not another SEO score.',
+    description: 'A free website check, plus monitoring plans with clear URL limits, alerts, CI and integrations.',
     body,
     path: '/pricing',
     user,

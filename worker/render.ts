@@ -725,124 +725,124 @@ a.incident:hover,a.site-card:hover{text-decoration:none;color:inherit}
    Intent: clarity over chrome, action over video, evidence over invented scores.
    Scoped to public pages. Signed-in app layouts, semantics, severity palettes and forms remain unchanged. */
 body.site-public{
-  --bg:#f7f4ed;--panel:#fffcf6;--line:#ddd9cd;--text:#1c2823;--mute:#5b675e;
-  --accent:#215344;--accent-bg:#e8efe8;--radius:11px;--btn-radius:6px;
+  --bg:#f5f7fc;--panel:#ffffff;--line:#d5dceb;--text:#19243d;--mute:#596981;
+  --accent:#3559df;--accent-bg:#e9edff;--radius:11px;--btn-radius:6px;
   background:var(--bg);color:var(--text);
 }
-.site-public .topbar{background:rgba(250,248,241,.96);border-bottom-color:#d5d8cb;backdrop-filter:blur(13px)}
+.site-public .topbar{background:rgba(250,251,255,.96);border-bottom-color:#dbe2ef;backdrop-filter:blur(13px)}
 .site-public .topbar-inner{max-width:1260px;padding-top:13px;padding-bottom:13px}
-.site-public .brand{font:750 22px/1 var(--serif);letter-spacing:-.04em;color:#1b332a}
+.site-public .brand{font:750 22px/1 var(--serif);letter-spacing:-.04em;color:#172744}
 .site-public .brand .mark{width:37px;height:37px}
 .site-public .nav{font:650 13px/1.2 var(--sans);flex-wrap:nowrap;gap:5px}
-.site-public .nav a{color:#485c50;padding:11px 12px;border-radius:5px}
-.site-public .nav a:hover,.site-public .nav a.on{color:#174f3e;background:#e7eee5}
-.site-public .nav .nav-login{border:1px solid #9caf9f;color:#1c4938;background:transparent;margin-left:10px;padding:11px 16px}
-.site-public .nav .nav-login:hover{background:#1d4939;color:#fff}
+.site-public .nav a{color:#53647d;padding:11px 12px;border-radius:5px}
+.site-public .nav a:hover,.site-public .nav a.on{color:#294dd0;background:#e9eeff}
+.site-public .nav .nav-login{border:1px solid #acbad8;color:#3150c0;background:transparent;margin-left:10px;padding:11px 16px}
+.site-public .nav .nav-login:hover{background:#2342b1;color:#fff}
 .site-public .wrap.home{max-width:1260px;padding-top:0;padding-bottom:42px}
 .site-public .wrap:not(.home){max-width:880px}
 .site-public .wrap:not(.home) > h1{font:500 clamp(2.7rem,5.5vw,4.3rem)/.99 var(--serif);letter-spacing:-.05em;max-width:15ch;margin:13px 0 24px}
-.site-public .wrap:not(.home) .lede{max-width:56ch;font-size:17px;line-height:1.7;color:#56665a}
-.site-public .wrap:not(.home) .card{box-shadow:none;background:#fffcf7;border-color:#dadfd3}
-.site-public .wrap:not(.home) .card h2,.site-public .wrap:not(.home) .prose h2{font-family:var(--serif);font-size:clamp(1.4rem,3vw,1.85rem);font-weight:550;letter-spacing:-.03em;color:#1c3228}
-.site-public .owner-story{background:#edf0e5;border-color:#cad5c7}
-.site-public .owner-story h2{color:#1a3428}
-.site-public .owner-story p{color:#526257}
+.site-public .wrap:not(.home) .lede{max-width:56ch;font-size:17px;line-height:1.7;color:#566983}
+.site-public .wrap:not(.home) .card{box-shadow:none;background:#fdfefe;border-color:#d9e0ed}
+.site-public .wrap:not(.home) .card h2,.site-public .wrap:not(.home) .prose h2{font-family:var(--serif);font-size:clamp(1.4rem,3vw,1.85rem);font-weight:550;letter-spacing:-.03em;color:#24375a}
+.site-public .owner-story{background:#e8edfb;border-color:#ccd7ef}
+.site-public .owner-story h2{color:#203858}
+.site-public .owner-story p{color:#5d6c83}
 .site-public .chip:hover{border-color:var(--accent)}
-.site-public .form-row button:hover{background:#183a2f}
-.site-public a:focus-visible,.site-public button:focus-visible,.site-public input:focus-visible,.site-public summary:focus-visible{outline:3px solid #b77c47;outline-offset:3px}
-.site-public .footer{margin-top:42px;padding-top:23px;border-color:#cbd5c7}
-.site-public .footer a{color:#2d5e49}
+.site-public .form-row button:hover{background:#2648bd}
+.site-public a:focus-visible,.site-public button:focus-visible,.site-public input:focus-visible,.site-public summary:focus-visible{outline:3px solid #a95e39;outline-offset:3px}
+.site-public .footer{margin-top:42px;padding-top:23px;border-color:#ccd5e6}
+.site-public .footer a{color:#3556c5}
 .sm-hero{display:grid;grid-template-columns:minmax(0,1.16fr) minmax(310px,.84fr);gap:clamp(20px,3.4vw,45px);padding:clamp(38px,6vw,79px) 0 35px;align-items:stretch}
 .sm-hero-main{min-width:0;display:flex;flex-direction:column;align-items:stretch}
-.sm-overline{display:flex;align-items:center;gap:9px;font:750 11px/1.5 var(--mono);letter-spacing:.095em;text-transform:uppercase;color:#416c57;margin:0}
-.sm-status-pip{width:8px;height:8px;background:#3f8d68;border-radius:50%;box-shadow:0 0 0 4px #e3ece1;flex-shrink:0}
-.sm-overline-index{color:#9b9b88;font-weight:500}
-.site-public .sm-hero h1{font:500 clamp(3.9rem,6.3vw,6.9rem)/.94 var(--serif);letter-spacing:-.066em;color:#1b342b;margin:27px 0 24px;max-width:12ch}
-.sm-hero h1 em,.sm-section-heading h2 em,.sm-close h2 em{font-weight:400;color:#4e8269}
-.sm-hero-lead{max-width:54ch;font:400 clamp(16px,1.45vw,18px)/1.7 var(--sans);color:#516357;margin:0 0 27px}
-.sm-check{background:#fffcf7;border:1px solid #cbd5c8;padding:21px 21px 15px;border-radius:10px;box-shadow:0 5px 0 rgba(47,71,50,.045)}
-.sm-form label{display:block;font:750 12px/1.4 var(--sans);color:#1b3328;letter-spacing:.02em;margin-bottom:9px}
+.sm-overline{display:flex;align-items:center;gap:9px;font:750 11px/1.5 var(--mono);letter-spacing:.095em;text-transform:uppercase;color:#4c65a0;margin:0}
+.sm-status-pip{width:8px;height:8px;background:#4b6deb;border-radius:50%;box-shadow:0 0 0 4px #e1eaff;flex-shrink:0}
+.sm-overline-index{color:#8a91a4;font-weight:500}
+.site-public .sm-hero h1{font:500 clamp(3.9rem,6.3vw,6.9rem)/.94 var(--serif);letter-spacing:-.066em;color:#142343;margin:27px 0 24px;max-width:12ch}
+.sm-hero h1 em,.sm-section-heading h2 em,.sm-close h2 em{font-weight:400;color:#5876db}
+.sm-hero-lead{max-width:54ch;font:400 clamp(16px,1.45vw,18px)/1.7 var(--sans);color:#586a86;margin:0 0 27px}
+.sm-check{background:#fdfefe;border:1px solid #ced8e9;padding:21px 21px 15px;border-radius:10px;box-shadow:0 5px 0 rgba(47,71,50,.045)}
+.sm-form label{display:block;font:750 12px/1.4 var(--sans);color:#1a2b49;letter-spacing:.02em;margin-bottom:9px}
 .sm-form.form-row{display:block}
 .sm-form-controls{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
-.sm-form-controls input{border:1px solid #c5d3c6;padding:15px 13px;font:15px/1.3 var(--sans);border-radius:5px;background:#fff;min-height:53px}
-.sm-form-controls input::placeholder{color:#8a988e}
-.sm-form-controls button{font:750 14px/1 var(--sans);min-height:53px;padding:0 22px;border-radius:5px;background:#215344;color:white;white-space:nowrap}
+.sm-form-controls input{border:1px solid #c8d4eb;padding:15px 13px;font:15px/1.3 var(--sans);border-radius:5px;background:#fff;min-height:53px}
+.sm-form-controls input::placeholder{color:#909bb0}
+.sm-form-controls button{font:750 14px/1 var(--sans);min-height:53px;padding:0 22px;border-radius:5px;background:#3559df;color:white;white-space:nowrap}
 .sm-form-controls button span{margin-left:6px;font-size:16px}
-.sm-form-note{font-size:12px;line-height:1.5;color:#37624b;margin:13px 0 0}
-.sm-form-note>span:first-child{color:#4c986b;font-size:9px}
-.sm-dot-sep{padding:0 4px;color:#8ea495}
-.sm-form-fine{font-size:11.5px;line-height:1.55;color:#68796a;margin:9px 0 0;max-width:65ch}
-.sm-try{display:flex;gap:10px 12px;flex-wrap:wrap;align-items:center;padding-top:21px;font:12px/1.5 var(--sans);color:#69786e}
-.sm-try .chip{background:transparent;color:#2a5c44;border:1px solid #cad7c8;font-weight:650;border-radius:5px;padding:9px 11px}
-.sm-evidence{display:flex;flex-direction:column;background:#172c23;border-radius:8px;color:#f5f3e9;padding:clamp(24px,3.1vw,39px);position:relative;overflow:hidden;min-width:0;border:1px solid #243d30}
-.sm-evidence:after{content:"";position:absolute;width:200px;height:200px;right:-100px;top:-110px;border:1px solid rgba(194,228,196,.13);border-radius:50%;box-shadow:0 0 0 35px rgba(194,228,196,.035),0 0 0 70px rgba(194,228,196,.024);pointer-events:none}
-.sm-evidence-top{display:flex;align-items:center;justify-content:space-between;gap:12px;font:650 10px/1.4 var(--mono);letter-spacing:.05em;color:#bbd7c2}
-.sm-evidence-mark{color:#e5f4c2;font-weight:750}
-.sm-evidence-label{color:#95ab98;text-align:right}
+.sm-form-note{font-size:12px;line-height:1.5;color:#3658bc;margin:13px 0 0}
+.sm-form-note>span:first-child{color:#4a72d9;font-size:9px}
+.sm-dot-sep{padding:0 4px;color:#91a2c9}
+.sm-form-fine{font-size:11.5px;line-height:1.55;color:#64728a;margin:9px 0 0;max-width:65ch}
+.sm-try{display:flex;gap:10px 12px;flex-wrap:wrap;align-items:center;padding-top:21px;font:12px/1.5 var(--sans);color:#65758d}
+.sm-try .chip{background:transparent;color:#3658be;border:1px solid #d1d9ea;font-weight:650;border-radius:5px;padding:9px 11px}
+.sm-evidence{display:flex;flex-direction:column;background:#111c36;border-radius:8px;color:#f3f6ff;padding:clamp(24px,3.1vw,39px);position:relative;overflow:hidden;min-width:0;border:1px solid #2d4069}
+.sm-evidence:after{content:"";position:absolute;width:200px;height:200px;right:-100px;top:-110px;border:1px solid rgba(156,179,252,.13);border-radius:50%;box-shadow:0 0 0 35px rgba(156,179,252,.04),0 0 0 70px rgba(156,179,252,.026);pointer-events:none}
+.sm-evidence-top{display:flex;align-items:center;justify-content:space-between;gap:12px;font:650 10px/1.4 var(--mono);letter-spacing:.05em;color:#b4c7ff}
+.sm-evidence-mark{color:#c0d0ff;font-weight:750}
+.sm-evidence-label{color:#a1b1d2;text-align:right}
 .sm-evidence-intro{position:relative;margin:52px 0 26px;max-width:26ch}
-.sm-evidence-dash{display:block;font:400 36px/1 var(--serif);color:#c8dfa3}
-.sm-evidence-intro p{font:500 clamp(1.8rem,3vw,2.85rem)/1.06 var(--serif);letter-spacing:-.03em;color:#faf8ef;margin:12px 0 0}
-.sm-evidence-intro p i{color:#bdd9ba;font-weight:400}
+.sm-evidence-dash{display:block;font:400 36px/1 var(--serif);color:#f7b77f}
+.sm-evidence-intro p{font:500 clamp(1.8rem,3vw,2.85rem)/1.06 var(--serif);letter-spacing:-.03em;color:#f3f6ff;margin:12px 0 0}
+.sm-evidence-intro p i{color:#9fbaff;font-weight:400}
 .sm-inspect{list-style:none;padding:0;margin:auto 0 0}
-.sm-inspect li{display:flex;gap:15px;align-items:center;border-top:1px solid #3b5444;padding:17px 0}
-.sm-inspect-count{font:600 11px/1 var(--mono);color:#a1c5a9;min-width:24px}
-.sm-inspect strong{font:650 15px/1.25 var(--sans);display:block;color:#f8f5ec}
-.sm-inspect small{font:12px/1.5 var(--sans);display:block;color:#b9c9b9;margin-top:4px}
-.sm-inspect-symbol{margin-left:auto;font:18px/1 var(--serif);color:#a5c6ab}
-.sm-evidence-foot{border-top:1px solid #3b5444;padding-top:18px;margin:5px 0 0;color:#cbddbc;font:650 11px/1.5 var(--mono);letter-spacing:.025em}
-.sm-evidence-ring{display:inline-block;border:1.5px solid #cee6b1;border-radius:50%;width:8px;height:8px;vertical-align:0;margin-right:5px}
-.sm-signal-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;border-top:1px solid #cdd7ca;border-bottom:1px solid #cdd7ca;padding:18px 0;margin-top:10px}
-.sm-signal-strip span{display:flex;align-items:center;gap:10px;padding:5px 12px;font:650 13px/1.3 var(--sans);color:#516756;border-right:1px solid #d1d8ca}
+.sm-inspect li{display:flex;gap:15px;align-items:center;border-top:1px solid #344768;padding:17px 0}
+.sm-inspect-count{font:600 11px/1 var(--mono);color:#a3b8fb;min-width:24px}
+.sm-inspect strong{font:650 15px/1.25 var(--sans);display:block;color:#f5f7ff}
+.sm-inspect small{font:12px/1.5 var(--sans);display:block;color:#b6c5df;margin-top:4px}
+.sm-inspect-symbol{margin-left:auto;font:18px/1 var(--serif);color:#aabaf4}
+.sm-evidence-foot{border-top:1px solid #344768;padding-top:18px;margin:5px 0 0;color:#b7c8ef;font:650 11px/1.5 var(--mono);letter-spacing:.025em}
+.sm-evidence-ring{display:inline-block;border:1.5px solid #c3d3fc;border-radius:50%;width:8px;height:8px;vertical-align:0;margin-right:5px}
+.sm-signal-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;border-top:1px solid #d4ddeb;border-bottom:1px solid #d4ddeb;padding:18px 0;margin-top:10px}
+.sm-signal-strip span{display:flex;align-items:center;gap:10px;padding:5px 12px;font:650 13px/1.3 var(--sans);color:#546b88;border-right:1px solid #d0d9e9}
 .sm-signal-strip span:first-child{padding-left:0}
 .sm-signal-strip span:last-child{border:0}
-.sm-signal-strip b{font:600 11px/1 var(--mono);color:#729880}
-.sm-section{padding:clamp(58px,8vw,106px) 0;border-bottom:1px solid #d7d8ca}
+.sm-signal-strip b{font:600 11px/1 var(--mono);color:#6e88cb}
+.sm-section{padding:clamp(58px,8vw,106px) 0;border-bottom:1px solid #d9e0ef}
 .sm-section-heading{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(250px,.75fr);gap:15px 55px;align-items:end;margin-bottom:34px}
 .sm-section-heading .sm-overline{grid-column:1/-1}
-.sm-section-heading h2,.sm-incident h2{font:500 clamp(2.85rem,5.1vw,5.4rem)/.99 var(--serif);letter-spacing:-.055em;color:#19352a;margin:0}
-.sm-section-heading p:last-child{color:#556a59;font:16px/1.7 var(--sans);max-width:43ch;margin:0 0 5px}
+.sm-section-heading h2,.sm-incident h2{font:500 clamp(2.85rem,5.1vw,5.4rem)/.99 var(--serif);letter-spacing:-.055em;color:#1e3052;margin:0}
+.sm-section-heading p:last-child{color:#5b6b87;font:16px/1.7 var(--sans);max-width:43ch;margin:0 0 5px}
 .sm-how-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}
-.sm-step{background:#fffcf6;border:1px solid #d5ddd0;border-radius:7px;padding:27px 25px 22px;min-height:270px;display:flex;flex-direction:column}
-.sm-step-index{font:700 11px/1.4 var(--mono);letter-spacing:.08em;color:#6a8c78}
-.sm-step h3{font:500 clamp(1.7rem,2.7vw,2.45rem)/1.05 var(--serif);letter-spacing:-.035em;color:#19382b;margin:37px 0 12px}
-.sm-step p{font:14px/1.65 var(--sans);color:#5b6c5e;margin:0 0 22px}
-.sm-step-line{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:auto;font:650 10px/1.2 var(--mono);color:#658975;letter-spacing:.045em}
-.sm-step-line span:nth-child(even){color:#aabcae}
+.sm-step{background:#ffffff;border:1px solid #d6dfed;border-radius:7px;padding:27px 25px 22px;min-height:270px;display:flex;flex-direction:column}
+.sm-step-index{font:700 11px/1.4 var(--mono);letter-spacing:.08em;color:#718ad4}
+.sm-step h3{font:500 clamp(1.7rem,2.7vw,2.45rem)/1.05 var(--serif);letter-spacing:-.035em;color:#1b315b;margin:37px 0 12px}
+.sm-step p{font:14px/1.65 var(--sans);color:#5a6b85;margin:0 0 22px}
+.sm-step-line{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:auto;font:650 10px/1.2 var(--mono);color:#6985c7;letter-spacing:.045em}
+.sm-step-line span:nth-child(even){color:#a6b5d8}
 .sm-incident{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:clamp(20px,5vw,70px);align-items:center}
 .sm-incident h2{font-size:clamp(2.5rem,4.3vw,4.6rem);margin:20px 0}
-.sm-incident-copy>p:not(.sm-overline){font:15px/1.75 var(--sans);color:#536a57}
+.sm-incident-copy>p:not(.sm-overline){font:15px/1.75 var(--sans);color:#5a6e89}
 .sm-link-row{display:flex;gap:12px 22px;flex-wrap:wrap;margin-top:28px}
-.sm-link-row a{font:700 13px/1.5 var(--sans);color:#1c5a40;text-underline-offset:4px;text-decoration:underline}
-.sm-real-demo{border-radius:8px;overflow:hidden;border:1px solid #536753;background:#192b22;color:#eaf3e4}
-.sm-demo-head{display:flex;justify-content:space-between;border-bottom:1px solid #405743;padding:16px 20px;color:#bbd4ba;font:650 11px/1.4 var(--mono);letter-spacing:.05em}
+.sm-link-row a{font:700 13px/1.5 var(--sans);color:#3558c2;text-underline-offset:4px;text-decoration:underline}
+.sm-real-demo{border-radius:8px;overflow:hidden;border:1px solid #586d90;background:#182440;color:#ecf2ff}
+.sm-demo-head{display:flex;justify-content:space-between;border-bottom:1px solid #3a4d73;padding:16px 20px;color:#b3c3f2;font:650 11px/1.4 var(--mono);letter-spacing:.05em}
 .sm-demo-details summary{cursor:pointer;display:flex;align-items:center;gap:18px;padding:31px 22px;list-style:none}
 .sm-demo-details summary::-webkit-details-marker{display:none}
-.sm-demo-details summary:hover{background:#233d2f}
-.sm-demo-details summary strong{display:block;font:500 clamp(1.35rem,2.3vw,1.95rem)/1.1 var(--serif);color:#f8f8ee}
-.sm-demo-details summary small{display:block;font:12px/1.55 var(--sans);color:#bacbbc;margin-top:8px}
-.sm-play-icon{display:grid;place-items:center;flex:none;width:49px;height:49px;border:1px solid #b0cfac;border-radius:50%;font-size:14px;color:#ebf5cf}
-.sm-demo-chevron{font:24px/1 var(--serif);color:#cedeca;margin-left:auto}
+.sm-demo-details summary:hover{background:#253a62}
+.sm-demo-details summary strong{display:block;font:500 clamp(1.35rem,2.3vw,1.95rem)/1.1 var(--serif);color:#f5f7ff}
+.sm-demo-details summary small{display:block;font:12px/1.55 var(--sans);color:#bdcae9;margin-top:8px}
+.sm-play-icon{display:grid;place-items:center;flex:none;width:49px;height:49px;border:1px solid #b2c1f8;border-radius:50%;font-size:14px;color:#e5ebff}
+.sm-demo-chevron{font:24px/1 var(--serif);color:#ccd8f5;margin-left:auto}
 .sm-demo-details[open] .sm-demo-chevron{transform:rotate(180deg)}
-.sm-demo-details video{width:100%;aspect-ratio:16/9;display:block;background:#101b13;object-fit:contain}
-.sm-demo-footer{display:flex;justify-content:space-between;gap:15px;flex-wrap:wrap;padding:16px 20px;border-top:1px solid #405743;font:600 10px/1.5 var(--mono);letter-spacing:.03em;color:#a7c3a9}
+.sm-demo-details video{width:100%;aspect-ratio:16/9;display:block;background:#0e1730;object-fit:contain}
+.sm-demo-footer{display:flex;justify-content:space-between;gap:15px;flex-wrap:wrap;padding:16px 20px;border-top:1px solid #3a4d73;font:600 10px/1.5 var(--mono);letter-spacing:.03em;color:#aebfe7}
 .sm-limits .sm-section-heading{grid-template-columns:1fr}
 .sm-limit-columns{display:grid;grid-template-columns:1fr 1fr;gap:20px}
-.sm-limit-col{padding:25px 0;border-top:2px solid #305f48}
-.sm-limit-col:last-child{border-color:#bc9274}
-.sm-limit-tag{font:750 11px/1.5 var(--mono);letter-spacing:.07em;color:#396c4c;margin:0 0 22px}
-.sm-limit-col:last-child .sm-limit-tag{color:#977053}
+.sm-limit-col{padding:25px 0;border-top:2px solid #3357c0}
+.sm-limit-col:last-child{border-color:#db865d}
+.sm-limit-tag{font:750 11px/1.5 var(--mono);letter-spacing:.07em;color:#3c5dbc;margin:0 0 22px}
+.sm-limit-col:last-child .sm-limit-tag{color:#9e603e}
 .sm-limit-col ul{list-style:none;margin:0;padding:0}
-.sm-limit-col li{position:relative;padding:13px 0 13px 23px;border-bottom:1px solid #d6dbce;color:#4f6253;font:14px/1.5 var(--sans)}
-.sm-limit-col li:before{content:'→';position:absolute;left:0;color:#668d70}
-.sm-close{display:grid;grid-template-columns:1.5fr .5fr;align-items:end;gap:25px;background:#e8e9dc;border:1px solid #d0d6c7;padding:clamp(25px,4vw,48px);border-radius:9px;margin:55px 0 25px}
-.sm-close h2{font:500 clamp(2.55rem,4.4vw,4.75rem)/1 var(--serif);letter-spacing:-.05em;max-width:15ch;color:#1b392b;margin:16px 0}
-.sm-close p:not(.sm-overline){font:15px/1.65 var(--sans);color:#536657;max-width:55ch;margin:0}
+.sm-limit-col li{position:relative;padding:13px 0 13px 23px;border-bottom:1px solid #d9e0ec;color:#536783;font:14px/1.5 var(--sans)}
+.sm-limit-col li:before{content:'→';position:absolute;left:0;color:#6e89d7}
+.sm-close{display:grid;grid-template-columns:1.5fr .5fr;align-items:end;gap:25px;background:#e7ebf7;border:1px solid #d1d9ec;padding:clamp(25px,4vw,48px);border-radius:9px;margin:55px 0 25px}
+.sm-close h2{font:500 clamp(2.55rem,4.4vw,4.75rem)/1 var(--serif);letter-spacing:-.05em;max-width:15ch;color:#172e55;margin:16px 0}
+.sm-close p:not(.sm-overline){font:15px/1.65 var(--sans);color:#586d89;max-width:55ch;margin:0}
 .sm-close-actions{display:flex;flex-direction:column;gap:12px;min-width:190px}
-.sm-close-primary{background:#1b4b36;color:#fff!important;display:flex;justify-content:space-between;gap:10px;align-items:center;text-decoration:none!important;border-radius:5px;padding:17px 20px;font:700 13px/1.4 var(--sans)}
-.sm-close-primary:hover{background:#113523}
-.sm-close-secondary{text-align:center;color:#305841!important;font:700 13px/1.5 var(--sans);padding:8px}
-.sm-public-proof{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px 20px;color:#617064;font:11.5px/1.6 var(--sans);padding:9px 0 0}
-.sm-public-proof strong{color:#344d3b}
+.sm-close-primary{background:#3559df;color:#fff!important;display:flex;justify-content:space-between;gap:10px;align-items:center;text-decoration:none!important;border-radius:5px;padding:17px 20px;font:700 13px/1.4 var(--sans)}
+.sm-close-primary:hover{background:#243fa8}
+.sm-close-secondary{text-align:center;color:#385ac2!important;font:700 13px/1.5 var(--sans);padding:8px}
+.sm-public-proof{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px 20px;color:#68778f;font:11.5px/1.6 var(--sans);padding:9px 0 0}
+.sm-public-proof strong{color:#344f80}
 .sm-public-proof a{text-decoration:underline;text-underline-offset:3px}
 @media(max-width:1040px){
   .sm-hero{grid-template-columns:minmax(0,1.06fr) minmax(290px,.94fr);gap:24px}
@@ -900,6 +900,135 @@ body.site-public{
 }
 @media(prefers-reduced-motion:reduce){.site-public *{scroll-behavior:auto!important;transition:none!important}}
 @media print{.site-public .sm-evidence,.site-public .sm-real-demo{background:white;color:#111;border:1px solid #aaa}.site-public .sm-inspect strong,.site-public .sm-evidence-intro p{color:#111}}
+
+/* Sitemapper is a topology and evidence instrument, not a generic green editorial product. */
+.site-public .brand{font-family:var(--sans);font-weight:600;letter-spacing:-.055em}
+.site-public .nav a.on{box-shadow:inset 0 -2px 0 #3559df}
+.site-public .sm-hero h1{font-family:var(--sans);font-weight:600;letter-spacing:-.078em;line-height:.97;max-width:12.5ch;font-size:clamp(3.5rem,6.5vw,6.4rem)}
+.site-public .sm-hero h1 em{font-family:var(--sans);font-weight:500;font-style:normal;color:#3559df}
+.site-public .sm-section-heading h2,.site-public .sm-incident h2,.site-public .sm-close h2{font-family:var(--sans);font-weight:600;letter-spacing:-.068em}
+.site-public .sm-section-heading h2 em,.site-public .sm-close h2 em{font-family:var(--sans);font-style:normal;font-weight:500;color:#4266e1}
+.site-public .sm-evidence{background:#111c36;border-color:#253960;box-shadow:0 12px 30px rgba(19,36,77,.08)}
+.site-public .sm-evidence:after{border-color:rgba(177,196,255,.13);box-shadow:0 0 0 35px rgba(141,170,255,.03),0 0 0 70px rgba(141,170,255,.015)}
+.site-public .sm-evidence-intro{margin:30px 0 20px;max-width:100%}
+.site-public .sm-evidence-intro p{font-family:var(--sans);font-weight:500;font-size:clamp(1.6rem,2.3vw,2.2rem);line-height:1.11;max-width:22ch}
+.site-public .sm-evidence-intro p i{font-family:var(--sans);font-style:normal;color:#abbcff}
+.site-public .sm-evidence-intro>span{display:block;font:12px/1.5 var(--sans);color:#b4c1dd;margin-top:12px}
+.site-public .sm-map-visual{margin:4px 0 25px}
+.site-public .sm-map-visual svg{width:100%;height:auto;display:block;border-radius:8px}
+.site-public .sm-inspect{margin:0}
+.site-public .sm-inspect li{padding:12px 0}
+.site-public .sm-evidence-foot{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;letter-spacing:0}
+.site-public .sm-evidence-foot span{color:#e9ad87}
+.site-public .sm-overline,.site-public .sm-step-index,.site-public .sm-step-line{font-family:var(--mono)}
+.site-public .sm-status-pip{background:#4b6deb;box-shadow:0 0 0 4px #e2e8fe}
+.site-public .sm-form-controls button,.site-public .sm-close-primary{background:#3559df}
+.site-public .sm-form-controls button:hover,.site-public .sm-close-primary:hover{background:#2546bf}
+.site-public .sm-hero-main .sm-check{box-shadow:0 5px 0 rgba(42,79,182,.035)}
+.site-public .sm-real-demo{background:#142343;border-color:#354a78}
+.site-public .sm-demo-head,.site-public .sm-demo-footer{border-color:#354b72}
+.site-public .sm-demo-details summary:hover{background:#243a6a}
+.site-public .sm-demo-details video{background:#101a34}
+.site-public .sm-close{background:#e9edf9;border-color:#cfdaf4}
+.site-public .sm-step{border-top:3px solid #3559df}
+.site-public .sm-step:nth-child(2){border-top-color:#8a9bd4}
+.site-public .sm-step:nth-child(3){border-top-color:#d88661}
+.site-public .sm-evidence-top,.site-public .sm-evidence-foot{font-family:var(--mono)}
+.site-public .sm-limits .sm-limit-col:first-child{border-color:#3559df}
+.site-public .sm-limits .sm-limit-col:last-child{border-color:#d88661}
+.site-public .wrap:not(.home)>h1{font-family:var(--sans);font-weight:600;letter-spacing:-.065em}
+.site-public .owner-story h2{font-family:var(--sans);letter-spacing:-.05em;font-weight:600}
+@media(max-width:640px){
+ .site-public .sm-hero h1{font-size:clamp(3.1rem,11.5vw,4.55rem);line-height:.97;letter-spacing:-.078em}
+ .site-public .sm-evidence-intro p{font-size:1.8rem}
+ .site-public .sm-evidence{min-height:auto}
+ .site-public .sm-map-visual{margin-bottom:18px}
+}
+
+/* Sitemapper product pages: same topology instrument, clearer choices. */
+.site-public .wrap.wide{max-width:1260px}
+.site-public .sm-pricing-intro,.site-public .sm-compare-intro{padding:55px 0 35px;border-bottom:1px solid #d6def0}
+.site-public .sm-pricing-intro h1,.site-public .sm-compare-intro h1{
+  font:600 clamp(3.25rem,6.2vw,6.4rem)/.98 var(--sans);
+  letter-spacing:-.075em;max-width:15ch;color:#142343;margin:20px 0 22px
+}
+.site-public .sm-pricing-intro h1 span,.site-public .sm-compare-intro h1 span{color:#3559df}
+.site-public .sm-pricing-lede,.site-public .sm-compare-lead{max-width:70ch;color:#596b89;font:16px/1.75 var(--sans);margin:0}
+.site-public .sm-pricing-flow{display:flex;gap:20px;flex-wrap:wrap;margin-top:30px}
+.site-public .sm-pricing-flow span{padding:11px 16px;background:#e7ecf9;border:1px solid #d5def1;color:#33496f;border-radius:5px;font:650 12px/1.4 var(--sans)}
+.site-public .sm-pricing-flow b{color:#4669da;font:600 11px var(--mono);margin-right:9px}
+.site-public .sm-plan-intro{display:flex;align-items:baseline;justify-content:space-between;gap:20px 40px;padding:48px 0 22px}
+.site-public .sm-plan-intro h2{margin:0;font:600 clamp(2rem,3.25vw,3rem)/1.1 var(--sans);letter-spacing:-.055em;color:#1b2c4a}
+.site-public .sm-plan-intro p{max-width:45ch;margin:0;color:#5d6d85;font:14px/1.7 var(--sans)}
+.site-public .sm-plan-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.site-public .sm-price-card{display:flex;flex-direction:column;border:1px solid #d4dceb;background:#fff;border-radius:8px;padding:23px 20px 20px;min-width:0}
+.site-public .sm-price-card--highlight{border-color:#496ae1;box-shadow:0 0 0 1px #496ae1,0 12px 25px rgba(44,73,154,.06)}
+.site-public .sm-price-card-head{border-bottom:1px solid #e3e8f2;padding-bottom:18px;min-height:185px}
+.site-public .sm-plan-id{font:650 10px/1.4 var(--mono);color:#697d9e;letter-spacing:.055em}
+.site-public .sm-price-card h2{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:17px 0 6px;font:600 30px/1.1 var(--sans);letter-spacing:-.06em;color:#182949}
+.site-public .sm-price-for{font:700 9px/1.5 var(--mono);letter-spacing:.03em;color:#3559df;background:#e7edff;padding:5px 6px;border-radius:3px}
+.site-public .sm-price-outcome{font:13px/1.55 var(--sans);color:#64738a;min-height:42px;margin:0 0 13px}
+.site-public .sm-price-card .plan-price{font-size:13px;color:#5c6a81;display:block}
+.site-public .sm-price-card .plan-price b{color:#152844;font:650 28px/1.2 var(--sans);letter-spacing:-.04em}
+.site-public .sm-price-essentials{margin:17px 0 0;list-style:none;padding:0;flex:1}
+.site-public .sm-price-essentials li{position:relative;padding:8px 0 8px 20px;border-bottom:1px solid #eef0f6;font:12.5px/1.45 var(--sans);color:#52637f}
+.site-public .sm-price-essentials li:before{content:"✓";color:#496ad2;position:absolute;left:0;font-weight:800}
+.site-public .sm-plan-details{border-bottom:1px solid #e6eaf3}
+.site-public .sm-plan-details summary{cursor:pointer;list-style:none;padding:17px 0;font:700 12px/1.4 var(--sans);color:#3758bb;display:flex;align-items:center;justify-content:space-between;gap:6px}
+.site-public .sm-plan-details summary::-webkit-details-marker{display:none}
+.site-public .sm-plan-details summary>span{font:600 22px/1 var(--sans);color:#8195c9}
+.site-public .sm-plan-details[open] summary>span{transform:rotate(45deg)}
+.site-public .sm-plan-details .list{margin:3px 0 16px;padding-left:17px}
+.site-public .sm-plan-details .list li{font-size:12px;line-height:1.6;color:#5a6b88}
+.site-public .sm-price-actions{display:flex;flex-direction:column;margin-top:19px;gap:9px}
+.site-public .sm-price-actions .btn,.site-public .sm-price-actions button{font-size:12px;line-height:1.3;width:100%;min-height:45px;background:#3559df;color:white;border-color:#3559df;border-radius:5px;text-align:center}
+.site-public .sm-price-actions form{width:100%}
+.site-public .sm-price-actions form:nth-child(2) button{background:#fff;color:#3559df;border:1px solid #c6d4fa}
+.site-public .sm-price-actions .btn:hover,.site-public .sm-price-actions button:hover{background:#2444b6;color:white}
+.site-public .sm-price-note{margin:35px 0;padding:22px 24px;background:#e9effa;border-left:3px solid #5674e2;font:13px/1.65 var(--sans);color:#516783}
+.site-public .sm-price-note strong{display:block;color:#203452;margin-bottom:5px}
+.site-public .sm-price-note a{color:#3359c5;font-weight:700;text-decoration:underline}
+.site-public .sm-compare-intro{padding-bottom:55px}
+.site-public .sm-compare-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;padding:42px 0}
+.site-public .sm-compare-item{display:flex;flex-direction:column;border:1px solid #d3ddee;background:white;border-radius:8px;padding:27px 25px 24px;min-height:460px;border-top:3px solid #3559df}
+.site-public .sm-compare-item:nth-child(2){border-top-color:#879bcf}
+.site-public .sm-compare-item:nth-child(3){border-top-color:#dd926f}
+.site-public .sm-compare-step{font:650 10px/1.5 var(--mono);color:#6c83b7}
+.site-public .sm-compare-item h2{margin:28px 0 14px;font:600 clamp(1.8rem,2.8vw,2.6rem)/1.1 var(--sans);letter-spacing:-.055em;color:#1c2f4c}
+.site-public .sm-compare-item p{font:14px/1.7 var(--sans);color:#5e6b80}
+.site-public .sm-compare-item ul{padding-left:18px;margin:14px 0 26px;color:#51627d;font:13px/1.6 var(--sans)}
+.site-public .sm-compare-item li{margin:7px 0}
+.site-public .sm-compare-link{margin-top:auto;display:block;text-decoration:none;background:#edf1fe;color:#2f54ca;padding:13px 12px;font:750 13px/1.4 var(--sans);text-align:center;border-radius:5px}
+.site-public .sm-compare-link:hover{background:#dfe8ff}
+.site-public .sm-compare-clarity{display:grid;grid-template-columns:200px 1fr auto;gap:20px;align-items:center;padding:28px 0 48px;border-top:1px solid #d2dceb}
+.site-public .sm-compare-clarity>span{font:700 11px/1.5 var(--mono);letter-spacing:.045em;color:#bd7851}
+.site-public .sm-compare-clarity strong{color:#243550}
+.site-public .sm-compare-clarity p{font:13px/1.7 var(--sans);color:#60718d;margin:6px 0 0}
+.site-public .sm-compare-clarity a{font-weight:700;font-size:13px;white-space:nowrap}
+@media(max-width:1020px){.site-public .sm-plan-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.site-public .sm-compare-clarity{grid-template-columns:1fr 2fr}.site-public .sm-compare-clarity a{grid-column:2}}
+@media(max-width:720px){.site-public .sm-compare-grid{grid-template-columns:1fr}.site-public .sm-compare-item{min-height:0}.site-public .sm-compare-item h2{margin-top:16px}.site-public .sm-plan-intro{display:block}.site-public .sm-plan-intro p{margin-top:14px}.site-public .sm-pricing-intro,.site-public .sm-compare-intro{padding:33px 0 25px}}
+@media(max-width:580px){.site-public .sm-plan-grid{grid-template-columns:1fr}.site-public .sm-price-card-head{min-height:0}.site-public .sm-price-outcome{min-height:0}.site-public .sm-pricing-intro h1,.site-public .sm-compare-intro h1{font-size:clamp(2.65rem,10.3vw,4rem)}.site-public .sm-compare-clarity{display:block}.site-public .sm-compare-clarity>span{display:block;margin-bottom:14px}.site-public .sm-compare-clarity a{display:block;margin-top:18px}}
+
+/* Final usability pass: get prices on screen quickly and use the builder's real portrait. */
+.site-public .sm-pricing-intro{padding:36px 0 25px}
+.site-public .sm-pricing-intro h1{font-size:clamp(2.85rem,5vw,4.7rem);max-width:21ch;margin:18px 0 15px}
+.site-public .sm-pricing-flow{display:none}
+.site-public .sm-plan-intro{padding:25px 0 17px}
+.site-public .sm-pricing-lede{max-width:64ch}
+.site-public .owner-story__layout{grid-template-columns:158px minmax(0,1fr);align-items:start;gap:26px}
+.site-public .sm-builder-photo{width:158px;height:182px;object-fit:cover;object-position:center top;border-radius:7px;border:1px solid #d3ddef}
+.site-public .wrap:not(.home) .owner-story h2,
+.site-public .wrap:not(.home) .card h2{font-family:var(--sans);font-weight:600;letter-spacing:-.045em}
+@media(max-width:650px){
+ .site-public .sm-pricing-intro{padding:26px 0 18px}
+ .site-public .sm-pricing-intro h1{font-size:clamp(2.7rem,9.7vw,3.55rem)}
+ .site-public .sm-plan-intro{padding:21px 0 15px}
+ .site-public .sm-plan-intro h2{font-size:1.7rem}
+ .site-public .sm-pricing-lede{font-size:14px;line-height:1.6}
+ .site-public .owner-story__layout{grid-template-columns:92px minmax(0,1fr);gap:14px}
+ .site-public .sm-builder-photo{width:92px;height:110px}
+}
+@media(max-width:390px){.site-public .owner-story__layout{display:block}.site-public .sm-builder-photo{margin:0 0 15px}}
 
 `;
 }
@@ -1418,20 +1547,38 @@ export function homeHtml(stats: { runs: number; pages: number }): string {
       <a class="chip" href="/api/report?site=https%3A%2F%2Fimagineqira.com">Scan Qira ↗</a>
     </div>
   </div>
-  <aside class="sm-evidence" aria-label="What the scan investigates">
-    <div class="sm-evidence-top"><span class="sm-evidence-mark">SM / FIELD NOTES</span><span class="sm-evidence-label">WHAT WE LOOK FOR</span></div>
-    <div class="sm-evidence-intro">
-      <span class="sm-evidence-dash" aria-hidden="true">↘</span>
-      <p>A website can <i>look fine</i> while the important paths underneath it quietly change.</p>
-    </div>
-    <ol class="sm-inspect">
-      <li><span class="sm-inspect-count">01</span><div><strong>Sitemap inventory</strong><small>Were important URLs removed?</small></div><span class="sm-inspect-symbol" aria-hidden="true">↗</span></li>
-      <li><span class="sm-inspect-count">02</span><div><strong>Live page sample</strong><small>Which pages now return errors?</small></div><span class="sm-inspect-symbol" aria-hidden="true">↗</span></li>
-      <li><span class="sm-inspect-count">03</span><div><strong>Indexing signals</strong><small>Did robots, canonical, or noindex change?</small></div><span class="sm-inspect-symbol" aria-hidden="true">↗</span></li>
-      <li><span class="sm-inspect-count">04</span><div><strong>Critical journeys</strong><small>Can the pages you care about still respond?</small></div><span class="sm-inspect-symbol" aria-hidden="true">↗</span></li>
-    </ol>
-    <p class="sm-evidence-foot"><span class="sm-evidence-ring" aria-hidden="true"></span> Evidence first. Assumptions labeled.</p>
-  </aside>
+  <aside class="sm-evidence" aria-label="Illustrated example of a site map and the checks Sitemapper performs">
+  <div class="sm-evidence-top"><span class="sm-evidence-mark">SITEMAPPER / TOPOLOGY</span><span class="sm-evidence-label">ILLUSTRATIVE EXAMPLE</span></div>
+  <div class="sm-evidence-intro">
+    <p>One homepage.<br><i>Many ways to break.</i></p>
+    <span>See the routes behind the screen.</span>
+  </div>
+  <div class="sm-map-visual" role="img" aria-label="Illustration: a homepage connected to pricing, an article, and checkout. Checkout is shown as a route requiring attention. This is an example, not a live scan.">
+    <svg viewBox="0 0 500 232" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+      <defs><pattern id="sm-grid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M 20 0 L 0 0 0 20" fill="none" stroke="#334260" stroke-width=".6" opacity=".65"/></pattern></defs>
+      <rect x="0.5" y=".5" width="499" height="231" rx="8" fill="#182440" stroke="#35476f"/>
+      <rect x="1" y="1" width="498" height="230" rx="8" fill="url(#sm-grid)" />
+      <path d="M 250 70 V105 M250 105 H100 V141 M250 105 V141 M250 105 H400 V141" fill="none" stroke="#768df7" stroke-width="2" stroke-linecap="round"/>
+      <path d="M250 105 H400 V141" fill="none" stroke="#f5a77c" stroke-width="2.5" stroke-dasharray="5 4"/>
+      <rect x="166" y="25" width="168" height="48" rx="7" fill="#e8edff" stroke="#a0b3ff"/>
+      <circle cx="185" cy="49" r="5" fill="#4c66e7"/><text x="199" y="54" fill="#1b284c" font-size="17" font-weight="600" font-family="Arial, sans-serif">Homepage</text>
+      <rect x="30" y="140" width="140" height="48" rx="7" fill="#243558" stroke="#7287cb"/>
+      <circle cx="49" cy="164" r="5" fill="#9db3ff"/><text x="61" y="169" fill="#f1f4ff" font-size="15" font-family="Arial, sans-serif">Pricing</text>
+      <rect x="180" y="140" width="140" height="48" rx="7" fill="#243558" stroke="#7287cb"/>
+      <circle cx="199" cy="164" r="5" fill="#9db3ff"/><text x="211" y="169" fill="#f1f4ff" font-size="15" font-family="Arial, sans-serif">Article</text>
+      <rect x="330" y="140" width="140" height="48" rx="7" fill="#49343d" stroke="#f7ae83"/>
+      <circle cx="349" cy="164" r="5" fill="#f5ab7f"/><text x="361" y="169" fill="#fff0e2" font-size="15" font-family="Arial, sans-serif">Checkout</text>
+      <text x="36" y="216" fill="#b3c1e8" font-size="11" font-family="monospace">ILLUSTRATIVE ROUTE MAP</text>
+      <text x="337" y="216" fill="#efb492" font-size="11" font-family="monospace">— NEEDS REVIEW</text>
+    </svg>
+  </div>
+  <ol class="sm-inspect">
+    <li><span class="sm-inspect-count">01</span><div><strong>Discover routes</strong><small>What the sitemap says exists.</small></div></li>
+    <li><span class="sm-inspect-count">02</span><div><strong>Inspect a sample</strong><small>Which live pages respond, redirect, or fail.</small></div></li>
+    <li><span class="sm-inspect-count">03</span><div><strong>Keep a baseline</strong><small>See what changes after the next deployment.</small></div></li>
+  </ol>
+  <p class="sm-evidence-foot">No account needed for the first scan. <span>Not a security audit.</span></p>
+</aside>
 </section>
 
 <div class="sm-signal-strip" aria-label="Scan service details">
@@ -1823,6 +1970,7 @@ export function aboutHtml(): string {
 <div class="card owner-story">
   <p class="kicker">A real person behind the tool</p>
   <div class="owner-story__layout">
+    <img class="sm-builder-photo" src="https://imagineqira.com/assets/bryan-leonard-20261117.webp" alt="Bryan Leonard, builder of Sitemapper" width="158" height="182" loading="lazy" decoding="async">
     <div>
       <h2>Built by Bryan Leonard.</h2>
       <p>Sitemapper is developed by <a href="https://imagineqira.com/bryanleonard/?view=systems" rel="noopener noreferrer">Bryan Leonard</a>, co-founder of Qira, as part of the Oortstack tool family. It comes from operating websites and needing reliable answers after a release: what changed, what broke, and what should be checked first.</p>
@@ -1859,28 +2007,42 @@ export function aboutHtml(): string {
 
 export function compareHtml(): string {
   const body = `
-<p class="kicker">Compare</p>
-<h1>Checker vs monitor vs CI</h1>
-<p class="lede">Typical sitemap tools dump URLs. Sitemapper separates a free public check, account-based monitoring that starts free, and CI guardrails on Builder+.</p>
-<div class="card">
-  <div class="card-head"><h2>What you get</h2></div>
-  <div class="table-wrap" style="max-height:none;margin:0">
-    <table class="data">
-      <thead><tr><th></th><th>Typical checker</th><th>Sitemapper public check</th><th>Sitemapper monitoring</th></tr></thead>
-      <tbody>
-        <tr><td>Job</td><td>List sitemap URLs</td><td><strong>Declared vs live evidence</strong></td><td><strong>What a deploy changed</strong></td></tr>
-        <tr><td>When you hear about it</td><td>When you remember to run it</td><td>This session</td><td><strong>Dashboard on every plan; email on Builder+</strong></td></tr>
-        <tr><td>Account</td><td>Often</td><td><strong>None</strong></td><td>Required</td></tr>
-        <tr><td>CI fail-the-deploy</td><td>Rare</td><td>No</td><td><strong>Builder+ · teams that have been burned</strong></td></tr>
-        <tr><td>Google indexed</td><td>Guessed from HTTP 200</td><td>Unknown</td><td>Pro/Agency with Search Console</td></tr>
-      </tbody>
-    </table>
-  </div>
-  <div class="actions"><a class="btn primary" href="/">Run the free check</a></div>
+<section class="sm-compare-intro" aria-labelledby="sm-compare-title">
+  <p class="sm-overline">SITEMAPPER / HOW TO CHOOSE</p>
+  <h1 id="sm-compare-title">A scan answers today.<br><span>Monitoring answers tomorrow.</span></h1>
+  <p class="sm-compare-lead">A sitemap list is useful. Knowing which publicly accessible pages respond, and what changed since the last deployment, is more useful when you're maintaining a real website.</p>
+</section>
+<div class="sm-compare-grid" aria-label="Three ways to use Sitemapper">
+  <article class="sm-compare-item">
+    <span class="sm-compare-step">01 / ONE-TIME</span>
+    <h2>Check now.</h2>
+    <p>Discover public sitemap URLs and sample live pages. No account required. Useful before sharing a site or after a release.</p>
+    <ul><li>Public robots and XML sitemap inventory</li><li>Live page status and indexing signals</li><li>A reviewable report with limits</li></ul>
+    <a class="sm-compare-link" href="/">Run a free scan ↗</a>
+  </article>
+  <article class="sm-compare-item">
+    <span class="sm-compare-step">02 / RECURRING</span>
+    <h2>Watch the change.</h2>
+    <p>Save an account-based baseline and compare what happened after later checks. Start with one site and daily checks on the Free plan.</p>
+    <ul><li>Dashboard changes and history</li><li>One-site daily monitoring is free</li><li>Email alerts start on Builder</li></ul>
+    <a class="sm-compare-link" href="/pricing">See monitoring plans ↗</a>
+  </article>
+  <article class="sm-compare-item">
+    <span class="sm-compare-step">03 / DEPLOYMENT</span>
+    <h2>Build a guardrail.</h2>
+    <p>Connect the monitoring evidence to release workflows. Builder and higher plans add CI safeguards; connected tools depend on plan limits.</p>
+    <ul><li>CI guardrails on Builder and above</li><li>More frequent checks on higher tiers</li><li>Available integrations depend on plan</li></ul>
+    <a class="sm-compare-link" href="/pricing">Compare safeguards ↗</a>
+  </article>
+</div>
+<div class="sm-compare-clarity">
+  <span>IMPORTANT DISTINCTION</span>
+  <div><strong>Detection is not proof of business impact.</strong><p>Sitemapper cannot promise complete coverage, prove Google indexing from an HTTP response, or calculate actual revenue lost from a broken page. Use source evidence plus your own analytics to evaluate impact.</p></div>
+  <a href="/about">Read the methods ↗</a>
 </div>`;
   return shell({
-    title: 'Sitemapper vs other sitemap checkers',
-    description: 'Free public checker and one-site daily monitoring. Builder+ adds email alerts and CI guardrails.',
+    title: 'Check, monitor and protect website changes · Sitemapper',
+    description: 'Compare a free public website scan, daily monitoring and CI release guardrails. See what each checks and what it cannot prove.',
     body,
     path: '/compare',
   });
