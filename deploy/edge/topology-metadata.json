@@ -1,0 +1,24 @@
+{
+  "release": "2026-11-19",
+  "workerEntrypoint": "worker.js",
+  "compatibility_date": "2026-06-18",
+  "bindings": [
+    {
+      "type": "service",
+      "name": "SITEMAPPER_ORIGIN",
+      "service": "sitemapper",
+      "environment": "production"
+    }
+  ],
+  "workers": [
+    {
+      "name": "sitemapper-topology-home-20261119",
+      "path": "deploy/edge/topology-home.mjs"
+    },
+    {
+      "name": "sitemapper-topology-pages-20261119",
+      "path": "deploy/edge/topology-pages.mjs"
+    }
+  ],
+  "rollBackDocs": "docs/releases/topology-public-20261119.md"
+}
