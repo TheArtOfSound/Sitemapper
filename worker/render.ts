@@ -1921,28 +1921,42 @@ export function aboutHtml(): string {
 
 export function compareHtml(): string {
   const body = `
-<p class="kicker">Compare</p>
-<h1>Checker vs monitor vs CI</h1>
-<p class="lede">Typical sitemap tools dump URLs. Sitemapper separates a free public check, account-based monitoring that starts free, and CI guardrails on Builder+.</p>
-<div class="card">
-  <div class="card-head"><h2>What you get</h2></div>
-  <div class="table-wrap" style="max-height:none;margin:0">
-    <table class="data">
-      <thead><tr><th></th><th>Typical checker</th><th>Sitemapper public check</th><th>Sitemapper monitoring</th></tr></thead>
-      <tbody>
-        <tr><td>Job</td><td>List sitemap URLs</td><td><strong>Declared vs live evidence</strong></td><td><strong>What a deploy changed</strong></td></tr>
-        <tr><td>When you hear about it</td><td>When you remember to run it</td><td>This session</td><td><strong>Dashboard on every plan; email on Builder+</strong></td></tr>
-        <tr><td>Account</td><td>Often</td><td><strong>None</strong></td><td>Required</td></tr>
-        <tr><td>CI fail-the-deploy</td><td>Rare</td><td>No</td><td><strong>Builder+ · teams that have been burned</strong></td></tr>
-        <tr><td>Google indexed</td><td>Guessed from HTTP 200</td><td>Unknown</td><td>Pro/Agency with Search Console</td></tr>
-      </tbody>
-    </table>
-  </div>
-  <div class="actions"><a class="btn primary" href="/">Run the free check</a></div>
+<section class="sm-compare-intro" aria-labelledby="sm-compare-title">
+  <p class="sm-overline">SITEMAPPER / HOW TO CHOOSE</p>
+  <h1 id="sm-compare-title">A scan answers today.<br><span>Monitoring answers tomorrow.</span></h1>
+  <p class="sm-compare-lead">A sitemap list is useful. Knowing which publicly accessible pages respond, and what changed since the last deployment, is more useful when you're maintaining a real website.</p>
+</section>
+<div class="sm-compare-grid" aria-label="Three ways to use Sitemapper">
+  <article class="sm-compare-item">
+    <span class="sm-compare-step">01 / ONE-TIME</span>
+    <h2>Check now.</h2>
+    <p>Discover public sitemap URLs and sample live pages. No account required. Useful before sharing a site or after a release.</p>
+    <ul><li>Public robots and XML sitemap inventory</li><li>Live page status and indexing signals</li><li>A reviewable report with limits</li></ul>
+    <a class="sm-compare-link" href="/">Run a free scan ↗</a>
+  </article>
+  <article class="sm-compare-item">
+    <span class="sm-compare-step">02 / RECURRING</span>
+    <h2>Watch the change.</h2>
+    <p>Save an account-based baseline and compare what happened after later checks. Start with one site and daily checks on the Free plan.</p>
+    <ul><li>Dashboard changes and history</li><li>One-site daily monitoring is free</li><li>Email alerts start on Builder</li></ul>
+    <a class="sm-compare-link" href="/pricing">See monitoring plans ↗</a>
+  </article>
+  <article class="sm-compare-item">
+    <span class="sm-compare-step">03 / DEPLOYMENT</span>
+    <h2>Build a guardrail.</h2>
+    <p>Connect the monitoring evidence to release workflows. Builder and higher plans add CI safeguards; connected tools depend on plan limits.</p>
+    <ul><li>CI guardrails on Builder and above</li><li>More frequent checks on higher tiers</li><li>Available integrations depend on plan</li></ul>
+    <a class="sm-compare-link" href="/pricing">Compare safeguards ↗</a>
+  </article>
+</div>
+<div class="sm-compare-clarity">
+  <span>IMPORTANT DISTINCTION</span>
+  <div><strong>Detection is not proof of business impact.</strong><p>Sitemapper cannot promise complete coverage, prove Google indexing from an HTTP response, or calculate actual revenue lost from a broken page. Use source evidence plus your own analytics to evaluate impact.</p></div>
+  <a href="/about">Read the methods ↗</a>
 </div>`;
   return shell({
-    title: 'Sitemapper vs other sitemap checkers',
-    description: 'Free public checker and one-site daily monitoring. Builder+ adds email alerts and CI guardrails.',
+    title: 'Check, monitor and protect website changes · Sitemapper',
+    description: 'Compare a free public website scan, daily monitoring and CI release guardrails. See what each checks and what it cannot prove.',
     body,
     path: '/compare',
   });
