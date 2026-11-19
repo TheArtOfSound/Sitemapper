@@ -111,6 +111,16 @@ button,.btn,.nav a,.rail a,.chip,.account-menu summary,.account-menu a{-webkit-t
   padding-bottom:max(72px, calc(28px + env(safe-area-inset-bottom)));
 }
 .wrap.home{max-width:980px}
+
+.owner-story{background:#f6f8ff;border-color:#d3dbef}
+.owner-story .kicker{margin-bottom:12px}
+.owner-story h2{font:600 clamp(1.6rem,3vw,2.3rem)/1.16 var(--serif);letter-spacing:-.035em;margin:0 0 12px;color:#131e35}
+.owner-story p{max-width:65ch;color:#46546d;line-height:1.7}
+.owner-story p+p{margin-top:11px}
+.owner-story__layout{display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
+.owner-story .actions{margin-top:23px;flex-wrap:wrap}
+@media(max-width:560px){.owner-story{padding:19px}.owner-story .actions .btn{min-height:44px}}
+
 .wrap.wide{max-width:1180px}
 
 .topbar{
@@ -833,7 +843,7 @@ function chromeFooter(kind: 'public' | 'app' = 'public'): string {
   </footer>`;
   }
   return `<footer class="footer">
-    <span>Free check · website safety · <a href="https://oortstack.com">Oortstack</a></span>
+    <span>Free check · website safety · <a href="https://oortstack.com">Oortstack</a> · <a href="/about">Built by Bryan Leonard</a></span>
     <span>
       <a href="/robots.txt">robots</a> ·
       <a href="/sitemap.xml">sitemap</a> ·
@@ -1604,36 +1614,41 @@ ${statusHint ? `<p class="flow-note">${escapeHtml(statusHint)}</p>` : ''}
 
 export function aboutHtml(): string {
   const body = `
-<p class="kicker">About</p>
-<h1>Website change detection and safety.</h1>
-<p class="lede">The public checker is free and needs no account. A free account adds one daily monitor with 14-day history.</p>
-<div class="card">
-  <div class="card-head"><h2>What monitoring is for</h2></div>
-  <p>Monitoring watches for high-risk production changes — checkout errors, pricing 404s, lost sitemap access, and robots.txt edits. Free records changes in the dashboard; Builder adds email alerts and CI guardrails.</p>
-  <p>CI / GitHub Action is a different buyer: teams that have already shipped a broken production site. A founder who checks once a month will not pay to fail deploys.</p>
+<p class="kicker">About · Sitemapper</p>
+<h1>Know what changed. Know who's responsible.</h1>
+<p class="lede">Sitemapper helps site owners catch changes that look harmless in a deployment but can break discovery, customer journeys, and revenue. Check a public site for free. Keep a daily baseline with a free account, or add alerts and CI safeguards on paid plans.</p>
+<div class="card owner-story">
+  <p class="kicker">A real person behind the tool</p>
+  <div class="owner-story__layout">
+    <div>
+      <h2>Built by Bryan Leonard.</h2>
+      <p>Sitemapper is developed by <a href="https://imagineqira.com/bryanleonard/?view=systems" rel="noopener noreferrer">Bryan Leonard</a>, co-founder of Qira, as part of the Oortstack tool family. It comes from operating websites and needing reliable answers after a release: what changed, what broke, and what should be checked first.</p>
+      <p>There is a public person and a project history to inspect. <a href="https://imagineqira.com/company/" rel="noopener noreferrer">Meet the Qira team</a> or review <a href="https://github.com/TheArtOfSound/Sitemapper" rel="noopener noreferrer">the Sitemapper source</a>.</p>
+      <div class="actions"><a class="btn primary" href="mailto:bryanleonard@imagineqira.com?subject=Sitemapper%20question">Contact the builder</a><a class="btn" href="https://imagineqira.com/bryanleonard/?view=systems" rel="noopener noreferrer">View Bryan's work</a></div>
+    </div>
+  </div>
 </div>
 <div class="card">
-  <div class="card-head"><h2>Free check</h2></div>
+  <div class="card-head"><h2>What a scan actually checks</h2></div>
   <ol class="list">
-    <li>Enter a site or sitemap URL</li>
-    <li>We survey robots + sitemaps + sample pages</li>
-    <li>You get evidence, fixes, inventory, and an agent pack</li>
+    <li>Read the public robots.txt file and discover the XML sitemap inventory.</li>
+    <li>Sample accessible pages, inspect status codes, and identify signals worth reviewing.</li>
+    <li>Show a dated report, a prioritized fix list, and an optional agent pack for implementation.</li>
   </ol>
+  <p>Monitoring compares later snapshots for sitemap changes, unavailable pages, and declared critical journeys. Free keeps one site with daily checks and 14 days of history. <a href="/pricing">See the plan limits</a> before deciding whether alerts or CI guardrails are relevant.</p>
 </div>
 <div class="card">
-  <div class="card-head"><h2>Agent pack files</h2></div>
-  <ul class="list">
-    <li><code>AGENTS.md</code> — repo instructions</li>
-    <li><code>.cursor/rules/sitemapper-seo.mdc</code> — Cursor rule</li>
-    <li><code>sitemapper/tasks.json</code> — prioritized tasks</li>
-    <li><code>sitemapper/inventory.json</code> — URL list</li>
-    <li><code>sitemapper/FIX_PROMPT.md</code> — paste-ready prompt</li>
-  </ul>
-  <div class="actions"><a class="btn primary" href="/">Start a survey</a></div>
+  <div class="card-head"><h2>What we do not claim</h2></div>
+  <p>Sitemapper reports what its crawler was able to observe. A small public sample is not a full penetration test, uptime guarantee, or confirmation that Google indexed a page. Blocked or slow sites may produce incomplete evidence, which should be treated as inconclusive rather than a clean bill of health.</p>
+  <p>We also do not convert a broken page into an invented dollar-loss estimate. The report tells you where to investigate; your analytics and operating data establish actual impact.</p>
+</div>
+<div class="card">
+  <div class="card-head"><h2>Explore or get help</h2></div>
+  <div class="actions"><a class="btn primary" href="/">Check a public site</a><a class="btn" href="/compare">Compare approaches</a><a class="btn" href="/pricing">View monitoring plans</a></div>
 </div>`;
   return shell({
-    title: 'About Sitemapper',
-    description: 'Free sitemap checker and one-site daily monitoring. Paid plans add alerts, CI, capacity, and integrations. Built by Oortstack.',
+    title: 'About Sitemapper · The builder, methods and limitations',
+    description: 'Meet Bryan Leonard, the builder behind Sitemapper at Qira and Oortstack. See how its website checks work, their limits, and how to ask for help.',
     body,
     path: '/about',
   });
